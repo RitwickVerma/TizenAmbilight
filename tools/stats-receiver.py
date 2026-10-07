@@ -17,8 +17,20 @@ Render a dumped frame with:
   cat <out>/appframe_Y <out>/appframe_C > /tmp/f.nv12
   ffmpeg -f rawvideo -pix_fmt nv12 -s 960x540 -i /tmp/f.nv12 -y /tmp/f.png
 
+SECURITY: this endpoint is UNAUTHENTICATED — the app cannot send credentials, so
+there is nothing to check them against. It therefore assumes a trusted network
+and applies the limits it can:
+
+  --bind         which interface to listen on (default 0.0.0.0 = every one)
+  --max-body     reject oversized bodies with 413 (default 8 MiB)
+  --allow-name   only these dump filenames are accepted (default appframe_Y,appframe_C)
+
+Do not expose it to an untrusted network. See SECURITY.md.
+
 Usage:
   python3 stats-receiver.py [--port 8791] [--out ./ambstats]
+                            [--bind 192.168.1.50] [--max-body 8388608]
+                            [--allow-name appframe_Y,appframe_C]
 """
 import argparse
 import base64
@@ -30,12 +42,16 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 ARGS = argparse.ArgumentParser()
 ARGS.add_argument("--port", type=int, default=8791)
 ARGS.add_argument("--out", default="./ambstats")
+ARGS.add_argument("--bind", default="0.0.0.0")
+ARGS.add_argument("--max-body", type=int, default=8 * 1024 * 1024)
+ARGS.add_argument("--allow-name", default="appframe_Y,appframe_C")
 OPTS = ARGS.parse_args()
 
 OUT = os.path.abspath(OPTS.out)
 os.makedirs(OUT, exist_ok=True)
 LATEST = os.path.join(OUT, "latest.json")
 HIST = os.path.join(OUT, "history.log")
+ALLOWED_NAMES = {n.strip() for n in OPTS.allow_name.split(",") if n.strip()}
 
 # Keep the newest report only, but log a compact line for every one so a
 # restart of this process does not erase the history.
@@ -50,6 +66,8 @@ def summarise(j):
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
+    # A socket timeout, so one stalled client cannot hold a worker thread forever.
+    timeout = 10
 
     def _reply(self, code, body=b"ok"):
         self.send_response(code)
@@ -69,13 +87,19 @@ class Handler(BaseHTTPRequestHandler):
             n = int(self.headers.get("Content-Length") or 0)
         except ValueError:
             n = 0
+        if n < 0 or n > OPTS.max_body:
+            self._reply(413, f"body too large (limit {OPTS.max_body})".encode())
+            return
         raw = self.rfile.read(n) if n else b""
         text = raw.decode("utf-8", "replace")
 
         if self.path.startswith("/file"):
             try:
                 d = json.loads(text)
-                name = os.path.basename(d.get("name") or "unnamed.bin")
+                name = os.path.basename(d.get("name") or "")
+                if name not in ALLOWED_NAMES:
+                    self._reply(400, f"filename not allowed: {name!r}".encode())
+                    return
                 blob = base64.b64decode(d.get("data") or "")
                 with open(os.path.join(OUT, name), "wb") as f:
                     f.write(blob)
@@ -103,5 +127,6 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    print(f"listening on 0.0.0.0:{OPTS.port}  out={OUT}", flush=True)
-    ThreadingHTTPServer(("0.0.0.0", OPTS.port), Handler).serve_forever()
+    print(f"listening on {OPTS.bind}:{OPTS.port}  out={OUT}  "
+          f"max_body={OPTS.max_body}  allowed={sorted(ALLOWED_NAMES)}", flush=True)
+    ThreadingHTTPServer((OPTS.bind, OPTS.port), Handler).serve_forever()
