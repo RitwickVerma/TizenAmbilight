@@ -10,11 +10,19 @@ obj/
 *.pfx
 *.jks
 *.keystore
+*.key
 certs/
 profiles.xml
 author-signature.xml
 signature1.xml
 tizen-studio-data/
+
+# Credentials — never commit
+.env
+.env.*
+*.cred
+*.secret
+credentials.json
 
 # Local/editor noise
 .vs/

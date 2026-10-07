@@ -254,6 +254,14 @@ dotnet restore TizenAmbilight.csproj
 dotnet msbuild TizenAmbilight.csproj -t:Rebuild -v:m -p:Configuration=Debug -nologo -clp:Summary
 ```
 
+Requires the .NET SDK **plus the Tizen .NET SDK** — the `Tizen.NET.Sdk` targets and the `tizen90`
+reference assemblies come from Tizen Studio, not from NuGet alone. If `dotnet` is not on your `PATH`,
+`export DOTNET_ROOT=<sdk dir>` and prepend it.
+
+Produces `bin/Debug/tizen90/TizenAmbilight.dll` and
+`bin/Debug/tizen90/io.gh.hermes.TizenAmbilight-1.0.0.tpk`. Build logs the line
+`is signed with Default Certificates!` — that build installs on nothing you own; re-sign it.
+
 Target `tizen90`, `Tizen.NET.Sdk/1.1.9`, **zero NuGet dependencies** — the PNG decoder, baseline JPEG
 decoder, JSON writer and capture P/Invoke are all first-party code.
 
