@@ -1,0 +1,40 @@
+{
+  "cases": [
+    {
+      "file": "probe_real.png",
+      "width": 321,
+      "height": 123,
+      "mode": "RGB",
+      "bytes": 479
+    },
+    {
+      "file": "probe_baseline_123x45.jpg",
+      "width": 123,
+      "height": 45,
+      "mode": "RGB",
+      "bytes": 1459
+    },
+    {
+      "file": "probe_progressive_300x200.jpg",
+      "width": 300,
+      "height": 200,
+      "mode": "RGB",
+      "bytes": 5022
+    },
+    {
+      "file": "probe_gray_baseline_64x64.jpg",
+      "width": 64,
+      "height": 64,
+      "mode": "L",
+      "bytes": 590
+    },
+    {
+      "file": "probe_not_jpeg.bin",
+      "width": 321,
+      "height": 123,
+      "mode": "RGB",
+      "bytes": 479,
+      "note": "PNG bytes under a .bin name"
+    }
+  ]
+}

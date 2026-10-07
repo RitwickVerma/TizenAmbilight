@@ -1,0 +1,15 @@
+{
+  "cmyk_4component": {
+    "file": "jpeg_cmyk_32x32.jpg",
+    "components": 4,
+    "why": "4-component CMYK/YCCK is deliberately unsupported"
+  },
+  "progressive_sof2": {
+    "file": "probe_progressive_300x200.jpg",
+    "why": "SOF2 progressive is deliberately unsupported"
+  },
+  "not_a_jpeg": {
+    "file": "probe_real.png",
+    "why": "a PNG handed to the JPEG decoder must be refused"
+  }
+}

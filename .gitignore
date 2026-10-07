@@ -1,0 +1,25 @@
+# Build output
+bin/
+obj/
+*.tpk
+*.wgt
+
+# Signing material — NEVER commit (certs, profiles, passwords)
+*.p12
+*.pem
+*.pfx
+*.jks
+*.keystore
+certs/
+profiles.xml
+author-signature.xml
+signature1.xml
+tizen-studio-data/
+
+# Local/editor noise
+.vs/
+.vscode/
+*.user
+*.suo
+*~
+.DS_Store

@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Host-side proof harness. NOT part of the Tizen app: it links the SAME source files the
+       Tizen project compiles (PngDecoder.cs, JpegDecoder.cs, PngSelfTest.cs, ZoneEngine.cs,
+       WledOutput.cs, Json.cs) into a plain net8.0 executable so the decoders can actually be RUN
+       and byte-compared against an independent encoder's output. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>DecoderSelfTest</RootNamespace>
+    <AssemblyName>DecoderSelfTest</AssemblyName>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblySearchPaths>$(AssemblySearchPaths)</AssemblySearchPaths>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="SelfTestMain.cs" />
+    <Compile Include="../TizenAmbilight/src/PngDecoder.cs" />
+    <Compile Include="../TizenAmbilight/src/JpegDecoder.cs" />
+    <Compile Include="../TizenAmbilight/src/PngSelfTest.cs" />
+    <Compile Include="../TizenAmbilight/src/ZoneEngine.cs" />
+    <Compile Include="../TizenAmbilight/src/WledOutput.cs" />
+    <Compile Include="../TizenAmbilight/src/Json.cs" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,80 @@
+[
+  {
+    "name": "tiny_allfilters",
+    "png": "tiny_allfilters.png",
+    "rgba": "tiny_allfilters.rgba",
+    "w": 5,
+    "h": 5,
+    "bytes": 171,
+    "filters": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "name": "gradient_paeth",
+    "png": "gradient_paeth.png",
+    "rgba": "gradient_paeth.rgba",
+    "w": 16,
+    "h": 9,
+    "bytes": 89,
+    "filters": [
+      4
+    ]
+  },
+  {
+    "name": "gradient_average",
+    "png": "gradient_average.png",
+    "rgba": "gradient_average.rgba",
+    "w": 13,
+    "h": 7,
+    "bytes": 143,
+    "filters": [
+      3
+    ]
+  },
+  {
+    "name": "split_idat",
+    "png": "split_idat.png",
+    "rgba": "split_idat.rgba",
+    "w": 11,
+    "h": 6,
+    "bytes": 185,
+    "filters": [
+      0,
+      4,
+      2,
+      1,
+      3
+    ]
+  },
+  {
+    "name": "one_pixel",
+    "png": "one_pixel.png",
+    "rgba": "one_pixel.rgba",
+    "w": 1,
+    "h": 1,
+    "bytes": 70,
+    "filters": [
+      0
+    ]
+  },
+  {
+    "name": "capture_size_960x540",
+    "png": "capture_size_960x540.png",
+    "rgba": "capture_size_960x540.rgba",
+    "w": 960,
+    "h": 540,
+    "bytes": 99693,
+    "filters": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ]
+  }
+]
