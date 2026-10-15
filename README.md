@@ -1,5 +1,7 @@
 # TizenAmbilight
 
+[![tip](https://img.shields.io/badge/tip-buy_covfefe_for_Ritwick-e91e63)](https://buycovfefefor.ritwickverma.dev/)
+
 A **real-frame ambilight for Samsung Tizen TVs** — implemented as a single headless Tizen .NET
 service app that runs *on the TV*.
 
