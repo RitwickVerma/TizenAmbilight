@@ -23,6 +23,7 @@
     <Compile Include="../TizenAmbilight/src/ZoneEngine.cs" />
     <Compile Include="../TizenAmbilight/src/WledOutput.cs" />
     <Compile Include="../TizenAmbilight/src/Json.cs" />
+    <Compile Include="../TizenAmbilight/src/VideoPlaneCapture.cs" />
   </ItemGroup>
 
 </Project>
