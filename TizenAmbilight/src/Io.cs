@@ -227,7 +227,7 @@ namespace TizenAmbilight
                         }
                         catch (Exception e3) { L("tv info read failed: " + e3.GetType().Name); }
                     }
-                    if (swCtrl.ElapsedMilliseconds >= ControlPollMs)
+                    if (cfg.HasControl && swCtrl.ElapsedMilliseconds >= ControlPollMs)
                     {
                         swCtrl.Restart();
                         string b = HttpGet(cfg.ControlUrl);
@@ -291,12 +291,12 @@ namespace TizenAmbilight
                         if (_pendingDumpY != null)
                         { dy = _pendingDumpY; _pendingDumpY = null; dc = _pendingDumpC; _pendingDumpC = null; }
                     }
-                    if (stats != null)
+                    if (stats != null && cfg.HasTelemetry)
                     {
                         string err = Json.Post(cfg.Endpoint + "/probe", stats, 10);
                         if (err != null) L("stats POST failed (poster): " + err);
                     }
-                    if (dy != null)
+                    if (dy != null && cfg.HasTelemetry)
                     {
                         string e1 = Json.Post(cfg.Endpoint + "/file", dy, 15);
                         L("frame dump Y " + (e1 == null ? "sent" : "FAILED: " + e1));

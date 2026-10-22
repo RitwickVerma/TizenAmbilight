@@ -11,16 +11,15 @@ namespace TizenAmbilight
     {
         // ================================================================ shutdown / blackout
 
-        /// <summary>Called from the framework terminate callback. Blanks the strip so it is never
-        /// left showing a stale frame. Does nothing unless output is enabled. Never throws.</summary>
         /// <summary>Set by OnShutdown (framework thread) and polled by the render loop. Without it the
         /// loop could send one more colour packet AFTER the shutdown blackout - last packet wins, so
         /// the strip would be left latched on a colour, which is the exact opposite of this path's
         /// purpose.</summary>
         static volatile bool _stopping;
 
-        /// <summary>Persist the log tail. The fatal handler calls this so the last lines survive a
-        /// crash - they are usually the only evidence of what went wrong.</summary>
+        /// <summary>True when a datagram may be sent: output is enabled AND a strip is configured.</summary>
+        static bool CanSend(Config cfg) { return cfg.OutputEnabled && cfg.HasWled; }
+
         /// <summary>Exercise the shutdown path on demand. `OnTerminate` has NEVER been observed firing
         /// on this device - the app is always SIGKILLed by `tizen install` - so the blackout, the log
         /// flush and the buffer release were all written-but-unexercised. This runs the identical code
@@ -48,8 +47,11 @@ namespace TizenAmbilight
                     { "uptime_s", (DateTime.UtcNow - ProcessStartUtc).TotalSeconds },
                     { "log", new List<object>(tail) },
                 };
-                string err = Json.Post(_cfg != null ? _cfg.Endpoint + "/probe" : "", Json.ToJson(rep), 3);
-                Console.WriteLine("[amb] shutdown report -> " + (err ?? "OK"));
+                if (_cfg != null && _cfg.HasTelemetry)
+                {
+                    string err = Json.Post(_cfg.Endpoint + "/probe", Json.ToJson(rep), 3);
+                    Console.WriteLine("[amb] shutdown report -> " + (err ?? "OK"));
+                }
             }
             catch { }
             Thread.Sleep(300);                      // let the blackout datagram leave
@@ -57,6 +59,8 @@ namespace TizenAmbilight
             Environment.Exit(0);
         }
 
+        /// <summary>Persist the log tail. The fatal handler calls this so the last lines survive a
+        /// crash - they are usually the only evidence of what went wrong.</summary>
         public static void FlushLog()
         {
             try
@@ -70,6 +74,8 @@ namespace TizenAmbilight
             catch { }
         }
 
+        /// <summary>Called from the framework terminate callback. Blanks the strip so it is never
+        /// left showing a stale frame. Does nothing unless output can be sent. Never throws.</summary>
         public static void OnShutdown()
         {
             _stopping = true;
@@ -77,7 +83,7 @@ namespace TizenAmbilight
             // genuinely the last datagram. The loop's iteration is tens of ms; 200 ms is ample.
             try { Thread.Sleep(200); } catch { }
             Config c = _cfg;
-            if (c == null || !c.OutputEnabled) return;
+            if (c == null || !CanSend(c)) return;
             try
             {
                 string err = WledOutput.SendBlackout(c.WledIp, c.WledPort, c.LedCount);
@@ -130,13 +136,6 @@ namespace TizenAmbilight
             }
         }
 
-        /// <summary>Send a stall/standby blackout, rate-limited to BlackoutHoldMs.
-        ///
-        /// WLED does not stay on our black by itself: the datagram carries a timeout byte, after which
-        /// WLED leaves live mode and reverts to its OWN segment colour (default WLED ORANGE). Anything
-        /// that blanks ONCE and then stops therefore turns orange a few seconds later. This is the one
-        /// place that knows how to keep the strip latched to black, and BOTH the stall path and the
-        /// standby path must go through it for as long as the blank state lasts.</summary>
         /// <summary>Target gamma for a given scene brightness.
         ///
         /// Anchored on the surround-gamma rule that a darker viewing condition calls for a higher gamma
@@ -157,9 +156,16 @@ namespace TizenAmbilight
             return g;
         }
 
+        /// <summary>Send a stall/standby blackout, rate-limited to BlackoutHoldMs.
+        ///
+        /// WLED does not stay on our black by itself: the datagram carries a timeout byte, after which
+        /// WLED leaves live mode and reverts to its OWN segment colour (default WLED ORANGE). Anything
+        /// that blanks ONCE and then stops therefore turns orange a few seconds later. This is the one
+        /// place that knows how to keep the strip latched to black, and BOTH the stall path and the
+        /// standby path must go through it for as long as the blank state lasts.</summary>
         static void HoldBlackout(Config cfg, string why)
         {
-            if (!cfg.OutputEnabled) return;
+            if (!CanSend(cfg)) return;
             if (_lastBlackoutUtc != DateTime.MinValue &&
                 (DateTime.UtcNow - _lastBlackoutUtc).TotalMilliseconds < BlackoutHoldMs) return;
 
@@ -178,7 +184,7 @@ namespace TizenAmbilight
         /// exactly once per stall and re-arms automatically when frames return.</summary>
         static void MaybeBlackout(Config cfg, Stats st)
         {
-            if (!cfg.OutputEnabled) return;
+            if (!CanSend(cfg)) return;
             if (_lastGoodFrameUtc == DateTime.MinValue) return;
             double ageMs = (DateTime.UtcNow - _lastGoodFrameUtc).TotalMilliseconds;
             if (ageMs < BlankAfterNoFrameMs) return;
@@ -199,26 +205,6 @@ namespace TizenAmbilight
                 (DateTime.UtcNow - _lastBlackoutUtc).TotalMilliseconds < BlackoutHoldMs) return;
 
             HoldBlackout(cfg, "strip blanked: no usable frame for " + (long)ageMs + " ms");
-        }
-
-        /// <summary>Blank the strip the instant the panel is first seen going to standby. The screen
-        /// is already dark, so a frame left latched on the strip is exactly the stale-light case
-        /// <see cref="WledOutput.SendBlackout"/> exists to prevent — this is a THIRD blackout path
-        /// alongside the consecutive-failure blackout and <see cref="OnShutdown"/>. It fires once per
-        /// on->off transition (the loop guards it), only when output is enabled, and never throws.</summary>
-        static void BlackoutForStandby(Config cfg)
-        {
-            if (!cfg.OutputEnabled) return;
-            try
-            {
-                string err = WledOutput.SendBlackout(cfg.WledIp, cfg.WledPort, cfg.LedCount);
-                if (err == null) L("panel on->standby: strip blanked (" + cfg.ZoneCount + " LEDs)");
-                else L("panel on->standby blackout failed: " + err);
-            }
-            catch (Exception e)
-            {
-                L("panel on->standby blackout threw " + e.GetType().Name + ": " + e.Message);
-            }
         }
     }
 }

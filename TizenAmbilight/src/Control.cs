@@ -50,7 +50,7 @@ namespace TizenAmbilight
                                  break;
                     case "rev":  if (dv == 0 || dv == 1) cfg.MapReverse = dv != 0; break;
                     case "test": if (dv == 0 || dv == 1) cfg.TestPattern = dv != 0; break;
-                    case "leds": if (iv >= 4 && iv <= 512) cfg.LedCount = iv; break;
+                    case "leds": if (iv >= 4 && iv <= WledOutput.MaxDrgbLeds) cfg.LedCount = iv; break;
                     // ---- tuning knobs, live. Lower alpha = MORE smoothing (longer EMA time constant).
                     case "alpha": if (dv >= 0.02 && dv <= 1.0) cfg.Alpha = dv; break;
                     case "gain":  if (dv >= 0.1 && dv <= 8.0) cfg.Gain = dv; break;
@@ -89,6 +89,7 @@ namespace TizenAmbilight
                     case "acut":  if (dv >= 0.0 && dv <= 200.0) cfg.AlphaCut = dv; break;
                     case "spatial": if (dv >= 0.0 && dv <= 1.0) cfg.Spatial = dv; break;
                     case "bars":  if (dv == 0 || dv == 1) cfg.Bars = dv != 0; break;
+                    case "brows": if (dv == 0 || dv == 1) cfg.BarRows = dv != 0; break;
                     case "bthr":  if (dv >= 4 && dv <= 80) cfg.BarThresh = (int)Math.Round(dv); break;
                     case "punch": if (dv >= 0.0 && dv <= 1.0) cfg.Punch = dv; break;
                     case "floor": if (dv >= 0.0 && dv <= 255.0) cfg.Floor = dv; break;

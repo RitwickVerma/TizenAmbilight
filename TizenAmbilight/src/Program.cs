@@ -9,36 +9,24 @@ using Tizen.Applications;
 namespace TizenAmbilight
 {
     /// <summary>
-    /// TizenAmbilight — a real-frame ambilight for Samsung Tizen TVs.
+    /// TizenAmbilight: a real-frame ambilight for Samsung Tizen TVs, as one headless service app.
     ///
-    /// One loop, one native call per frame: dc_request_capture_to_file_sync() writes a PNG of the
-    /// screen, we decode it ourselves (PngDecoder), average a border band into N perimeter zones
-    /// (ZoneEngine), smooth those over time with an EMA, and — ONLY when the `outputEnabled`
-    /// preference is explicitly true — push the colours to a WLED strip as one DRGB UDP datagram.
-    /// `outputEnabled` defaults to TRUE on this device - set deliberately on explicit request so the
-    /// strip is driven out of the box. It still gates every send, so a preference of false makes the
-    /// app compute and report colours without emitting a packet. A stock install on a NEW device
-    /// would therefore drive the strip: change the default below before reusing this app elsewhere.
+    /// Each frame: read the TV's decoded VIDEO plane into our own buffers
+    /// (<see cref="VideoPlaneCapture"/>), average a border band into N perimeter zones straight from
+    /// the YUV planes (<see cref="ZoneLayout"/>), smooth them over time, tone-map, and send the colours
+    /// to a WLED strip as one DRGB UDP datagram (<see cref="WledOutput"/>). The legacy
+    /// screenshot-to-PNG path (<see cref="CaptureApi"/>) remains as a non-default fallback backend.
     ///
-    /// The loop is instrumented rather than guessed at: capture/decode/zone/smooth/total
-    /// milliseconds, the achieved and window fps, and per-status counters are POSTed to a local
-    /// collector every `statsIntervalSec`. What the earlier measurement builds established about
-    /// the capture API is recorded as a constant (<see cref="RecordedMeasurement"/>) and logged
-    /// once at startup — it is not re-derived at runtime.
+    /// Settings come from config.json bundled in the TPK (<see cref="ConfigFile"/>); live tuning from
+    /// an optional control URL (<see cref="Ambilight.ApplyControl"/>). Nothing is sent anywhere until
+    /// an endpoint is configured.
     ///
-    /// A JPEG decoder exists (compressType=1 selects it) but is deliberately NOT yet wired into
-    /// the main loop: the capture-call saving is real, but end to end it is much smaller than the
-    /// per-frame overhead the loop still carries, and that has to be measured first.
+    /// Power-state aware: the loop asks the TV's own local API (port 8001) whether the panel is on and
+    /// makes no capture calls in standby. A probe that cannot answer is treated as "on", so a working
+    /// screen is never skipped (<see cref="PowerStateProbe"/>).
     ///
-    /// POWER-STATE AWARENESS: before every capture the loop asks the TV's own local REST API
-    /// (port 8001) whether the panel is on. While it is in standby there is nothing to capture, so
-    /// CaptureApi.Capture is not called at all and the loop sleeps long instead — the earlier
-    /// measurement recorded ~10.8k wasted capture calls at ~1/s sustained with the panel off, into
-    /// an API known to burst then stop. A probe that cannot answer is treated as "panel on", so a
-    /// working screen is never skipped. See <see cref="PowerStateProbe"/>.
-    ///
-    /// SAFETY: outputEnabled defaults to TRUE on this device (see above). Only dc_request_capture_to_file_sync is ever
-    /// called and no /dev node is touched by this project.
+    /// Everything is instrumented rather than guessed at: timings, per-status counters and a log tail
+    /// are POSTed to an optional collector every `statsIntervalSec`.
     /// </summary>
     class App : ServiceApplication
     {
@@ -86,7 +74,7 @@ namespace TizenAmbilight
         public const string AppId = "io.gh.hermes.TizenAmbilight";
         // Bump this whenever behaviour changes. It sat at "v3" through the HDR decode, the BT.2020->709
         // gamut map and the adaptive tone curve, which made build identification useless in telemetry.
-        public const string Version = "v4";
+        public const string Version = "v5";
 
         // ---- failure handling ----
         const int FailSleepMs = 200;                     // pause after a frame-less iteration
@@ -182,7 +170,12 @@ namespace TizenAmbilight
 
             L("=== " + AppId + " " + Version + " starting ===");
             L(RecordedMeasurement);
-            L("capture control channel: " + cfg.ControlUrl + " (body containing 'pause' stops capture calls)");
+            L("config: " + ConfigFile.Source + " (" + ConfigFile.Count + " keys)");
+            if (!cfg.HasWled)
+                L("NOTE: no wledIp configured - colours are computed but nothing is sent. " +
+                  "Copy config.example.json to config.json, set wledIp, rebuild.");
+            L("control channel: " + (cfg.HasControl ? cfg.ControlUrl : "(none)") +
+              "   telemetry: " + (cfg.HasTelemetry ? cfg.Endpoint : "(none)"));
             L("brightness shaping: gain=" + cfg.Gain + " gamma=" + cfg.Gamma +
               " saturation=" + cfg.Saturation +
               " white=" + cfg.WhiteR + "/" + cfg.WhiteG + "/" + cfg.WhiteB);
@@ -200,9 +193,11 @@ namespace TizenAmbilight
             L("png decoder self-test: " + selfTest);
 
             // ---- (1) resolve the capture library ----
-            if (cfg.CaptureBackend == VideoPlaneCapture.BackendName)
+            bool usePlane = cfg.CaptureBackend == VideoPlaneCapture.BackendName;
+            string vErr = null;
+            if (usePlane)
             {
-                string vErr = VideoPlaneCapture.Init();
+                vErr = VideoPlaneCapture.Init();
                 if (vErr != null) L("VIDEO-PLANE backend NOT ready: " + vErr +
                                     " (set preference captureBackend=file to fall back)");
                 else L("video-plane backend ready: " + VideoPlaneCapture.ResolvedPath + " @ 0x" +
@@ -252,14 +247,18 @@ namespace TizenAmbilight
 
             var stats = new Stats();
 
-            if (initErr != null)
+            // Gate on the SELECTED backend only. This used to test the legacy file backend's library
+            // even when the video plane was selected, so a firmware without libdisplay-capture-api
+            // would idle forever although the default backend was ready.
+            string backendErr = usePlane ? vErr : initErr;
+            if (backendErr != null)
             {
-                Post(cfg, BuildReport(cfg, selfTest, initErr, captureDir, discovery, "no_library", stats));
+                Post(cfg, BuildReport(cfg, selfTest, backendErr, captureDir, discovery, "no_library", stats));
                 L("cannot run the main loop without the capture library; idling and retrying every 60 s");
                 while (true)
                 {
                     Thread.Sleep(60000);
-                    string again = CaptureApi.Init();
+                    string again = usePlane ? VideoPlaneCapture.Init() : CaptureApi.Init();
                     if (again == null) { L("capture library became available"); MainLoop(cfg, selfTest, captureDir, discovery, stats); return; }
                 }
             }
@@ -512,35 +511,43 @@ namespace TizenAmbilight
                         // ---- letterbox detection, with hysteresis ----
                         if (cfg.Bars)
                         {
-                            // ---- VERTICAL (letterbox) ----
-                            int dTop, dBottom;
-                            VideoPlaneCapture.DetectActiveArea(vr.Y, vr.W, vr.H, cfg.BarThresh,
-                                                               out dTop, out dBottom);
-                            if (Math.Abs(dTop - candTop) <= 2 && Math.Abs(dBottom - candBottom) <= 2)
+                            if (cfg.BarRows)
                             {
-                                candCount++;
+                                // ---- VERTICAL (letterbox) ----
+                                int dTop, dBottom;
+                                VideoPlaneCapture.DetectActiveArea(vr.Y, vr.W, vr.H, cfg.BarThresh,
+                                                                   out dTop, out dBottom);
+                                if (Math.Abs(dTop - candTop) <= 2 && Math.Abs(dBottom - candBottom) <= 2)
+                                {
+                                    candCount++;
+                                }
+                                else
+                                {
+                                    candTop = dTop; candBottom = dBottom; candCount = 1;
+                                }
+                                // Only adopt once the same area has held for BarHold frames, or the bars
+                                // "breathe" on every cut to a bright or dark shot.
+                                // ASYMMETRIC hysteresis: cropping is adopted quickly (a film starting is a
+                                // real, persistent event) but GIVING THE CROP BACK needs a much longer run,
+                                // or a bright cut inside a letterboxed film reads as "bars gone" and the
+                                // strip twitches. Measured on hardware as adopted=7 flip-flops.
+                                bool reducingBars = (candTop < barTop) || (candBottom > barBottom);
+                                int needHold = reducingBars ? cfg.BarHold * 6 : cfg.BarHold;
+                                if (candCount >= needHold &&
+                                    (candTop != barTop || candBottom != barBottom))
+                                {
+                                    barTop = candTop; barBottom = candBottom;
+                                    st.BarTopNow = barTop; st.BarBottomNow = barBottom;
+                                    st.BarsAdopted++;
+                                    L("letterbox: active rows " + barTop + ".." + barBottom +
+                                      " (" + (barBottom - barTop) + " of " + vr.H + " px)" +
+                                      (barTop > 0 || barBottom < vr.H ? " - bars" : " - full frame"));
+                                }
                             }
                             else
                             {
-                                candTop = dTop; candBottom = dBottom; candCount = 1;
-                            }
-                            // Only adopt once the same area has held for BarHold frames, or the bars
-                            // "breathe" on every cut to a bright or dark shot.
-                            // ASYMMETRIC hysteresis: cropping is adopted quickly (a film starting is a
-                            // real, persistent event) but GIVING THE CROP BACK needs a much longer run,
-                            // or a bright cut inside a letterboxed film reads as "bars gone" and the
-                            // strip twitches. Measured on hardware as adopted=7 flip-flops.
-                            bool reducingBars = (candTop < barTop) || (candBottom > barBottom);
-                            int needHold = reducingBars ? cfg.BarHold * 6 : cfg.BarHold;
-                            if (candCount >= needHold &&
-                                (candTop != barTop || candBottom != barBottom))
-                            {
-                                barTop = candTop; barBottom = candBottom;
-                                st.BarTopNow = barTop; st.BarBottomNow = barBottom;
-                                st.BarsAdopted++;
-                                L("letterbox: active rows " + barTop + ".." + barBottom +
-                                  " (" + (barBottom - barTop) + " of " + vr.H + " px)" +
-                                  (barTop > 0 || barBottom < vr.H ? " - bars" : " - full frame"));
+                                barTop = 0; barBottom = -1;
+                                st.BarTopNow = 0; st.BarBottomNow = 0;
                             }
 
                             // ---- HORIZONTAL (pillarbox) ----
@@ -763,9 +770,8 @@ namespace TizenAmbilight
                     // ---- AMBIENT FLOOR: never let the room go fully dark ----
                     if (cfg.Floor > 0) Colors.ApplyFloor(shaped, cfg.Floor);
 
-                    // ---- 5. output. Enabled by default on THIS device (a deliberate choice on
-                    // explicit request); the preference still gates it. ----
-                    if (cfg.OutputEnabled)
+                    // ---- 5. output (only when enabled AND a strip is configured) ----
+                    if (CanSend(cfg))
                     {
                         ZoneColors toSend = shaped;
                         if (cfg.TestPattern && layout != null)

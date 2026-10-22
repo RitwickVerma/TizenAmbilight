@@ -210,7 +210,7 @@ namespace TizenAmbilight
             w["reactive"] = "blankAfterNoFrameMs=" + BlankAfterNoFrameMs +
                             " powerPollCacheMs=" + PowerPollCacheMs +
                             " offSleepMs=" + OffSleepMs + " powerPolls=" + st.PowerPolls;
-            w["bars"] = "enabled=" + cfg.Bars + " rows=" + st.BarTopNow + ".." + st.BarBottomNow +
+            w["bars"] = "enabled=" + cfg.Bars + " rowTest=" + cfg.BarRows + " rows=" + st.BarTopNow + ".." + st.BarBottomNow +
                         " cols=" + st.BarLeftNow + ".." + st.BarRightNow +
                         " adopted=" + st.BarsAdopted + " thresh=" + cfg.BarThresh + " hold=" + cfg.BarHold;
             w["ambience"] = "punch=" + cfg.Punch + " punchFrames=" + cfg.PunchFrames +
@@ -271,6 +271,7 @@ namespace TizenAmbilight
 
         static void Post(Config cfg, Dictionary<string, object> report)
         {
+            if (!cfg.HasTelemetry) return;
             string json = Json.ToJson(report);
             string err = Json.Post(cfg.Endpoint + "/probe", json, 10);
             L("report " + report["phase"] + " -> " + (err == null ? "OK" : err) + " (" + json.Length + "B)");

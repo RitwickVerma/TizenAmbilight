@@ -17,7 +17,8 @@ author-signature.xml
 signature1.xml
 tizen-studio-data/
 
-# Credentials — never commit
+# Local settings (may hold LAN addresses) and credentials — never commit
+TizenAmbilight/config.json
 .env
 .env.*
 *.cred
@@ -31,3 +32,5 @@ credentials.json
 *.suo
 *~
 .DS_Store
+.serena/
+.idea/

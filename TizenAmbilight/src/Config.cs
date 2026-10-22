@@ -11,13 +11,14 @@ namespace TizenAmbilight
     {
         // ================================================================ config
 
+        /// <summary>Every tunable the app reads, resolved once at startup by <see cref="ReadConfig"/>
+        /// and then adjusted live by the control channel (<see cref="ApplyControl"/>).</summary>
         sealed class Config
         {
-            public bool OutputEnabled;          // default TRUE on this device: enabled on explicit
-                                                // user request 2026-09-11. Only a deliberate change.
+            public bool OutputEnabled;          // master switch for UDP output; gates every send
             public int ZoneCount;
             public double Alpha;
-            // ---- output brightness shaping (WLED itself is already at bri=255) ----
+            // ---- output brightness shaping ----
             public double Gain;
             public double Gamma;
             public double Black;        // blacks at/below this go to zero (kills the "milky" haze)
@@ -25,9 +26,10 @@ namespace TizenAmbilight
             public double AlphaCut;     // mean per-channel frame delta above which we react FAST
             public double AlphaFast;    // alpha used for those frames (scene cuts)
             public double Spatial;      // perimeter neighbour blend, 0 = off
-            // ---- letterbox (black bar) handling ----
-            public bool Bars;           // slide top/bottom bands inside the active picture area
-            public int BarThresh;       // a row is bar if >=90% of it is below this
+            // ---- letterbox / pillarbox handling ----
+            public bool Bars;           // master switch for black-bar detection
+            public bool BarRows;        // also test ROWS (letterbox); see the ReadConfig note
+            public int BarThresh;       // a row/column is bar if >=90% of it is below this
             public int BarHold;         // frames a new bar size must persist before being adopted
             // ---- ambience ----
             public double Punch;        // brief brightness/saturation overshoot on a cut, 0 = off
@@ -36,56 +38,63 @@ namespace TizenAmbilight
             // ---- stale content: a frozen picture must not hold the strip lit forever ----
             public double StaleMs;      // fade after the picture has not moved this long (0 = never)
             public double StaleLevel;   // dim factor to fade to (0.35 = 35%)
-            // ---- colour handling (added with the YUV rework) ----
+            // ---- colour handling ----
             public double Saturation;   // chroma expansion about neutral, applied before the matrix
-            public bool Hdr;                    // decode the plane as PQ-encoded HDR
-        public bool Gamut;                  // convert BT.2020 primaries -> BT.709 for the strip
-        public int ZoneSample;              // pixel stride when averaging zones (1 = every pixel)
-        // ---- adaptive tone curve (see SceneGammaTarget) ----
-        public bool ZoneHexAll;             // report every zone in zone_sample_hex (audit tool)
-        public bool AdaptiveGamma;          // drive gamma from the scene's brightness
-        public double GammaMin, GammaMax;   // clamp range for the adapted gamma
-        public double AdaptTauS;            // EMA time constant of the adaptation
-        public int TargetFps;               // cap on the capture rate; 0 = uncapped
-            public double WhiteR, WhiteG, WhiteB;   // per-channel white balance, applied after it
+            public bool Hdr;            // decode the plane as PQ-encoded HDR
+            public bool Gamut;          // convert BT.2020 primaries -> BT.709 for the strip
+            public int ZoneSample;      // pixel stride when averaging zones (1 = every pixel)
+            public bool ZoneHexAll;     // report every zone in zone_sample_hex (audit tool)
+            // ---- adaptive tone curve (see SceneGammaTarget) ----
+            public bool AdaptiveGamma;          // drive gamma from the scene's brightness
+            public double GammaMin, GammaMax;   // clamp range for the adapted gamma
+            public double AdaptTauS;            // EMA time constant of the adaptation
+            public int TargetFps;               // cap on the capture rate; 0 = uncapped
+            public double WhiteR, WhiteG, WhiteB;   // per-channel white balance
             public double BandFrac;
+            // ---- endpoints. Empty = that feature is off; nothing is sent anywhere by default. ----
             public string WledIp;
             public int WledPort;
             public int WledTimeout;
-            public string Endpoint;
+            public string Endpoint;     // telemetry collector base URL
             public int StatsIntervalSec;
-            // ---- power-state probe (local API on the TV itself) ----
-            public string PowerUrl;
-            // ---- the main loop's capture request is steerable without a rebuild ----
+            public string PowerUrl;     // the TV's own local API (loopback)
+            public string ControlUrl;   // live control channel; GET returns the token body
+            // ---- legacy file backend request ----
             public int RequestWidth;
             public int RequestHeight;
-            // ---- which capture backend the main loop uses ----
             // "video_plane" : secvideo_api_capture_video_main -> the VIDEO plane, in memory (no file)
-            // "file"        : the original dc_request_capture_to_file_sync PNG-file path
+            // "file"        : the legacy dc_request_capture_to_file_sync PNG-file path
             public string CaptureBackend;
-            public string ControlUrl;   // GET here; body containing "pause" stops capture calls
-            // ---- live-steerable mapping (see WledOutput.BuildDrgbMapped) ----
+            // ---- zone -> LED mapping (see WledOutput.BuildDrgbMapped) ----
             public int MapOffset;
             public bool MapReverse;
-            public int LedCount;        // physical LEDs to drive (75 on this strip)
+            public int LedCount;        // physical LEDs to drive; LEDs past ZoneCount are sent black
             public bool TestPattern;    // send the 4-edge colour test instead of the ambilight
             public int CompressType;
             public int JpegQuality;
+
+            public bool HasWled { get { return !string.IsNullOrEmpty(WledIp); } }
+            public bool HasTelemetry { get { return !string.IsNullOrEmpty(Endpoint); } }
+            public bool HasControl { get { return !string.IsNullOrEmpty(ControlUrl); } }
 
             public Dictionary<string, object> ToJson()
             {
                 return new Dictionary<string, object>
                 {
+                    { "config_source", ConfigFile.Source },
                     { "output_enabled", OutputEnabled },
                     { "zone_count", (long)ZoneCount },
+                    { "led_count", (long)LedCount },
                     { "smoothing_alpha", Alpha },
                     { "border_band_frac", BandFrac },
                     { "wled_ip", WledIp },
                     { "wled_port", (long)WledPort },
                     { "wled_timeout_s", (long)WledTimeout },
                     { "probe_endpoint", Endpoint },
+                    { "control_url", ControlUrl },
                     { "stats_interval_s", (long)StatsIntervalSec },
                     { "power_state_url", PowerUrl },
+                    { "capture_backend", CaptureBackend },
                     { "request_width", (long)RequestWidth },
                     { "request_height", (long)RequestHeight },
                     { "compress_type", (long)CompressType },
@@ -94,78 +103,113 @@ namespace TizenAmbilight
             }
         }
 
+        // ---- setting lookup: Tizen Preference (if the app ever set one) > config.json > default ----
+
         static bool PrefBool(string key, bool dflt)
         {
             try
             {
-                if (!Preference.Contains(key)) return dflt;
-                // Only an explicit true enables anything; anything else stays at the default.
-                object v = Preference.Get<bool>(key);
-                return (v is bool) && (bool)v;
+                if (Preference.Contains(key))
+                {
+                    object v = Preference.Get<bool>(key);
+                    return (v is bool) && (bool)v;
+                }
             }
-            catch { return dflt; }
+            catch { }
+            double d;
+            return ConfigFile.TryGetDouble(key, out d) ? d != 0 : dflt;
         }
 
         static int PrefInt(string key, int dflt)
         {
-            try { return Preference.Contains(key) ? Preference.Get<int>(key) : dflt; }
-            catch { return dflt; }
+            try { if (Preference.Contains(key)) return Preference.Get<int>(key); }
+            catch { }
+            double d;
+            if (ConfigFile.TryGetDouble(key, out d) && d >= int.MinValue && d <= int.MaxValue)
+                return (int)Math.Round(d);
+            return dflt;
         }
 
         static double PrefDouble(string key, double dflt)
         {
             try
             {
-                if (!Preference.Contains(key)) return dflt;
-                object v = Preference.Get<double>(key);
-                return v == null ? dflt : Convert.ToDouble(v);
+                if (Preference.Contains(key))
+                {
+                    object v = Preference.Get<double>(key);
+                    if (v != null) return Convert.ToDouble(v);
+                }
             }
-            catch { return dflt; }
+            catch { }
+            double d;
+            return ConfigFile.TryGetDouble(key, out d) ? d : dflt;
         }
 
         static string PrefString(string key, string dflt)
         {
             try
             {
-                if (!Preference.Contains(key)) return dflt;
-                string v = Preference.Get<string>(key);
-                return string.IsNullOrEmpty(v) ? dflt : v;
+                if (Preference.Contains(key))
+                {
+                    string v = Preference.Get<string>(key);
+                    if (!string.IsNullOrEmpty(v)) return v;
+                }
             }
-            catch { return dflt; }
+            catch { }
+            string s;
+            return ConfigFile.TryGetString(key, out s) ? s.Trim() : dflt;
+        }
+
+        /// <summary>Find and load config.json. The TPK puts it in <c>res/</c>; the app's assembly runs
+        /// from <c>bin/</c>, so the sibling path is the fallback if the framework directory API is
+        /// unavailable.</summary>
+        static void LoadConfigFile()
+        {
+            string resDir = null;
+            try { resDir = Application.Current?.DirectoryInfo?.Resource; } catch { }
+            string binDir = AppDomain.CurrentDomain.BaseDirectory ?? "";
+            ConfigFile.Load(
+                string.IsNullOrEmpty(resDir) ? null : System.IO.Path.Combine(resDir, "config.json"),
+                System.IO.Path.Combine(binDir, "..", "res", "config.json"));
         }
 
         static Config ReadConfig()
         {
+            LoadConfigFile();
             var c = new Config();
-            // ---- Default TRUE on this device, on explicit request 2026-09-11. Change back to false
-            //      before reusing this app on a strip that another ambilight already drives. ----
-            c.OutputEnabled = PrefBool("outputEnabled", true);   // ENABLED 2026-09-11 on explicit request
-            c.ZoneCount = PrefInt("zoneCount", 73);
-            if (c.ZoneCount < 4) c.ZoneCount = 4;
-            if (c.ZoneCount > 512) c.ZoneCount = 512;
+            // Gates every UDP send. With no wledIp configured there is nowhere to send anyway, so
+            // defaulting to true only means "drive the strip once one is configured".
+            c.OutputEnabled = PrefBool("outputEnabled", true);
+
+            // ---- strip size. Set ledCount to the strip's LED count; zones follow it unless set. ----
+            // zoneCount < ledCount leaves the extra LEDs black (e.g. LEDs hidden behind a stand).
+            int leds = PrefInt("ledCount", 0), zones = PrefInt("zoneCount", 0);
+            if (leds <= 0 && zones <= 0) { leds = DefaultZoneCount; zones = DefaultZoneCount; }
+            else if (zones <= 0) zones = leds;
+            else if (leds <= 0) leds = zones;
+            c.ZoneCount = Math.Max(4, Math.Min(WledOutput.MaxDrgbLeds, zones));
+            c.LedCount = Math.Max(4, Math.Min(WledOutput.MaxDrgbLeds, leds));
+
             c.Alpha = PrefDouble("alpha", 0.25);
             if (c.Alpha <= 0.0) c.Alpha = 1.0;
             if (c.Alpha > 1.0) c.Alpha = 1.0;
             c.Gain = PrefDouble("gain", 1.0);
             if (c.Gain < 0.1) c.Gain = 0.1;
             if (c.Gain > 8.0) c.Gain = 8.0;
-            // 1.2 = a mild perceptual lift, chosen by the user for punch. Brightness belongs HERE and
-            // not in Gain: gain multiplies the top of the range and CLIPS it (gain 1.25 flattened
-            // everything above zone-avg ~200 to 255 = lost highlight detail), whereas gamma lifts the
-            // mid-tones and provably cannot clip. Set 1.0 for a strictly faithful transfer.
-            // 1.5, not 1.2. The plane is PRE-TONE-MAP, and the TV brightens it substantially for
-            // display, so a faithful linear-ish mapping always read darker than the screen. Measured on
-            // a real film: 96% of its pixels sit at PQ codes 16-31 (0.09-0.28 nits), where gamma 1.2 put
-            // the LED output at 0.2% - effectively off. Gamma raises those mid/low codes WITHOUT
-            // touching hue or saturation, and cannot clip (the transfer already saturates by code 160).
-            // This is the brightness dial; the user tunes it by eye.
+            // Brightness belongs in GAMMA, not gain: gain multiplies the top of the range and clips it
+            // (gain 1.25 flattened everything above a zone average of ~200 to 255), whereas gamma lifts
+            // the mid-tones and cannot clip.
+            // 1.5 because the plane is PRE-TONE-MAP and the TV brightens it substantially for display,
+            // so a faithful mapping reads darker than the screen. Measured on a real film: 96% of its
+            // pixels sat at PQ codes 16-31 (0.09-0.28 nits), where gamma 1.2 left the LEDs at 0.2%.
+            // This is the manual curve; with adaptiveGamma on it is only the fallback.
             c.Gamma = PrefDouble("gamma", 1.5);
-            // ADAPTIVE TONE CURVE. A single static gamma cannot suit both a film whose picture sits at
-            // 0.09-0.28 nits (where 1.5 is right) and a bright game (where 1.5 over-brightens). The
-            // surround-gamma literature says a darker viewing condition wants a HIGHER gamma, and that
-            // principle applies directly if "surround" is taken to be the scene itself. Standard
-            // practice in HDR is likewise to adapt the tone curve to the scene's AVERAGE brightness
-            // (HDR10+ / SMPTE ST 2094 DMCVT), shipped as madVR's "dynamic target nits".
+            if (c.Gamma < 1.0) c.Gamma = 1.0;
+            if (c.Gamma > 4.0) c.Gamma = 4.0;
+            // ADAPTIVE TONE CURVE. One static gamma cannot suit both a film sitting at 0.09-0.28 nits
+            // and a bright game. The surround-gamma rule says a darker viewing condition wants a
+            // HIGHER gamma; taking the scene itself as the "surround" gives a content-adaptive curve,
+            // the same idea as HDR10+ / SMPTE ST 2094 dynamic metadata and madVR's dynamic target nits.
             c.ZoneHexAll = PrefInt("zoneHexAll", 0) != 0;
             c.AdaptiveGamma = PrefInt("adaptiveGamma", 1) != 0;
             c.GammaMin = Math.Max(0.5, Math.Min(3.0, PrefDouble("gammaMin", 1.15)));
@@ -173,17 +217,12 @@ namespace TizenAmbilight
             // ~2 s: slow enough that the strip never visibly pumps between scenes, which is the failure
             // mode of any content-adaptive tone curve. Game engines use tau ~1.1 s for tonemapping.
             c.AdaptTauS = Math.Max(0.2, Math.Min(60.0, PrefDouble("adaptTau", 2.0)));
-            if (c.Gamma < 1.0) c.Gamma = 1.0;
-            if (c.Gamma > 4.0) c.Gamma = 4.0;
-            // A mild crush for contrast. MUST STAY BELOW `floor`: the floor is applied BEFORE this
-            // tone map, so a black level above it maps the floored value to 0 and silently switches
-            // the ambient floor off (floor 10 with black 20 = no floor at all).
-            // 12, not 20. The content's black level is PQ code 16 (0.087 nits) and the PQ->SDR transfer
-            // maps that to ~10, so the crush only needs to remove ~10-12 to reach true zero. At 20 it was
-            // also deleting the film's entire picture: 66% of its pixels sit at codes 16-23, which mapped
-            // to LED 0. 12 keeps code 16 at exactly 0 (true black preserved) while letting code 24 reach
-            // 17 and code 31 reach 30. Raise this only if blacks look lifted; lower it only if a genuinely
-            // black frame glows.
+            // Black crush. MUST STAY BELOW `floor` when a floor is used: the floor is applied BEFORE
+            // this tone map, so a black level above it maps the floored value to 0 and silently turns
+            // the floor off. 12 because the content's black level is PQ code 16 (0.087 nits), which the
+            // transfer maps to ~10: 12 keeps code 16 at exactly 0 while letting code 24 reach 17. At 20
+            // it deleted most of a dark film (66% of its pixels sat at codes 16-23). Raise it only if
+            // blacks look lifted; lower it only if a genuinely black frame glows.
             c.Black = PrefDouble("black", 12);
             if (c.Black < 0) c.Black = 0;
             if (c.Black > 200) c.Black = 200;
@@ -193,21 +232,24 @@ namespace TizenAmbilight
             if (c.AlphaFast < 0.02) c.AlphaFast = 0.02;
             if (c.AlphaFast > 1.0) c.AlphaFast = 1.0;
             if (c.AlphaFast < c.Alpha) c.AlphaFast = c.Alpha;
-            // Raised from 0.25 to 0.50 because the blur no longer COMPOUNDS. It used to be applied
-            // in place to the EMA state, so every frame re-blurred an already-blurred value and the
-            // effective halo was far wider than the number suggested. Applying it once per frame on
-            // an output copy (correct, and no drift) needs a bigger value for the same look.
+            // 0.50 because the blur is applied once per frame to an output copy. It used to be applied
+            // in place to the EMA state, so it compounded frame over frame and a smaller number gave
+            // a far wider halo than it suggested.
             c.Spatial = PrefDouble("spatial", 0.50);
             if (c.Spatial < 0) c.Spatial = 0;
             if (c.Spatial > 1.0) c.Spatial = 1.0;
-            c.Bars = PrefInt("bars", 1) != 0;   // ON: plane DOES carry bars (measured) - pillarbox 4:3 content
-            // 18, not 24. A genuine letterbox/pillarbox bar reads the PQ black level (16, measured);
-            // dark PICTURE in a film reads 21-26. 24 sat in the middle of that and cropped real
-            // picture whenever a scene went dark, with adopted re-firing hundreds of times as the
-            // scene brightness moved. 18 separates the two cleanly. The detector also requires FLATNESS
-            // now, so this value only has to clear the black level, not every dark pixel.
+            // Bar detection. Columns (pillarbox) detected real 4:3 content on hardware. Rows
+            // (letterbox) default OFF: the video plane is scaled to fill the requested box, so on the
+            // reference TV it carried no letterbox rows and the row test only produced false
+            // positives (observed cropping 25% of the picture). `barRows=1` re-enables it for a
+            // device whose plane does carry them.
+            c.Bars = PrefInt("bars", 1) != 0;
+            c.BarRows = PrefInt("barRows", 0) != 0;
+            // 18, not 24. A genuine bar reads the PQ black level (16, measured); dark PICTURE reads
+            // 21-26, so 24 cropped real picture whenever a scene went dark. The detector also
+            // requires flatness, so this only has to clear the black level.
             c.BarThresh = PrefInt("barThresh", 18);
-            if (c.BarThresh < 17) c.BarThresh = 17;   // bars read exactly 16, and the test is `< thr`,
+            if (c.BarThresh < 17) c.BarThresh = 17;   // bars read exactly 16 and the test is `< thr`,
                                                       // so anything <= 16 matches nothing at all
             if (c.BarThresh > 80) c.BarThresh = 80;
             c.BarHold = PrefInt("barHold", 8);
@@ -219,14 +261,9 @@ namespace TizenAmbilight
             c.PunchFrames = PrefInt("punchFrames", 5);
             if (c.PunchFrames < 0) c.PunchFrames = 0;
             if (c.PunchFrames > 60) c.PunchFrames = 60;
-            // Must exceed `black` or the tone map erases it (see the Black note above).
-            // PERMANENTLY ZERO - "no floor ever" (user decision, 2026-09-11). Do NOT restore this to a
-            // non-zero default: it was originally requested as a "never fully dark" feature and was then
-            // explicitly removed once true blacks mattered. A floor and true blacks are mutually
-            // exclusive - the floor lifts exactly the zones that should be off.
-            //
-            // This is NOT a lost setting or a bug. A future session seeing 0 here has found the intended
-            // value, not a regression. The ambient glow is deliberately gone.
+            // Ambient floor, default 0 = true blacks. A floor and true blacks are mutually exclusive:
+            // the floor lifts exactly the zones that should be off. Must exceed `black` to have any
+            // effect (see the Black note above).
             c.Floor = PrefDouble("floor", 0);
             if (c.Floor < 0) c.Floor = 0;
             if (c.Floor > 255) c.Floor = 255;
@@ -235,61 +272,50 @@ namespace TizenAmbilight
             c.StaleLevel = PrefDouble("staleLevel", 0.35);
             if (c.StaleLevel < 0) c.StaleLevel = 0;
             if (c.StaleLevel > 1.0) c.StaleLevel = 1.0;
-            // 1.8 is a COMPENSATION, not an exaggeration, and it is not the same kind of thing as a
-            // tint: scaling chroma magnitude preserves HUE and cannot create colour in a grey zone
-            // (a grey zone stays grey at any saturation). What it corrects is a real dilution - per
-            // zone U/V averaging is a vector mean, so mixed-hue content averages toward neutral.
-            // Measured on a real frame, mean output saturation over 73 zones: 0.17 at 1.0 vs 0.31 at
-            // 1.8. Set 1.0 only if you want the raw averaged value rather than the perceived colour.
-            // 1.0 = AUTHENTIC, chosen by the user: no chroma exaggeration at all. The old per-channel
-            // transfer INVENTED +19-35% saturation with a hue shift (a blue cast in the shadows); the
-            // luma-preserving decode removed that, and the gamut conversion supplies the honest colour.
-            // Raise toward 1.4 only if you want it deliberately more vivid - scaling chroma preserves
-            // hue, so it stays natural-looking; above ~1.5 the soft gamut map starts pulling chroma back.
+            // 1.0 = no chroma exaggeration. Scaling chroma preserves hue and cannot create colour in
+            // a grey zone; it compensates for per-zone U/V averaging, which is a vector mean and pulls
+            // mixed-hue content toward neutral (measured mean output saturation 0.17 at 1.0 vs 0.31 at
+            // 1.8). Raise toward ~1.4 for a deliberately more vivid look; above ~1.5 the soft gamut
+            // map starts pulling chroma back.
             c.Saturation = PrefDouble("saturation", 1.0);
-            // HDR: the plane carries PQ-encoded HDR on this device (verified 2026-09-11 - luma ceiling
-            // 148 on two unrelated contents = the PQ code for 203 nits). Set 0 only for SDR sources.
-            c.Hdr = PrefInt("hdr", 1) != 0;
-            c.Gamut = PrefInt("gamut", 1) != 0;
-            // 3 scans ~9x fewer pixels per zone; the zone mean is unaffected at this sample count.
-            // This loop was the frame-rate ceiling, so it is worth tuning live.
-            c.ZoneSample = Math.Max(1, Math.Min(8, PrefInt("zoneSample", 3)));
-            // RESOURCE CAP. The loop otherwise runs as fast as the TV allows (~55 fps measured), but
-            // ambient light reads as continuous at ~25. Capping the rate is the largest saving
-            // available at zero perceptible cost: it removes whole CAPTURE calls, which are about
-            // two thirds of a frame, instead of shaving cheap arithmetic.
-            c.TargetFps = Math.Max(0, Math.Min(120, PrefInt("targetFps", 25)));
             if (c.Saturation < 0.0) c.Saturation = 0.0;
             if (c.Saturation > 4.0) c.Saturation = 4.0;
-            c.WhiteR = PrefDouble("whiteR", 1.0);
-            c.WhiteG = PrefDouble("whiteG", 1.0);
-            c.WhiteB = PrefDouble("whiteB", 1.0);
-            if (c.WhiteR < 0.1) c.WhiteR = 0.1; if (c.WhiteR > 4.0) c.WhiteR = 4.0;
-            if (c.WhiteG < 0.1) c.WhiteG = 0.1; if (c.WhiteG > 4.0) c.WhiteG = 4.0;
-            if (c.WhiteB < 0.1) c.WhiteB = 0.1; if (c.WhiteB > 4.0) c.WhiteB = 4.0;
+            // The plane carries PQ-encoded HDR on the reference TV (luma ceiling 148 on two unrelated
+            // contents = the PQ code for 203 nits). Set 0 only if your device delivers SDR.
+            c.Hdr = PrefInt("hdr", 1) != 0;
+            c.Gamut = PrefInt("gamut", 1) != 0;
+            // Stride 3 scans ~9x fewer pixels per zone at 1.4% mean error against every pixel. Zone
+            // extraction, not capture, was the frame-rate ceiling.
+            c.ZoneSample = Math.Max(1, Math.Min(8, PrefInt("zoneSample", 3)));
+            // RESOURCE CAP. Uncapped the loop runs at ~55 fps, but ambient light reads as continuous
+            // at ~25. Capping removes whole capture calls (about two thirds of a frame) instead of
+            // shaving cheap arithmetic.
+            c.TargetFps = Math.Max(0, Math.Min(120, PrefInt("targetFps", 25)));
+            c.WhiteR = Math.Max(0.1, Math.Min(4.0, PrefDouble("whiteR", 1.0)));
+            c.WhiteG = Math.Max(0.1, Math.Min(4.0, PrefDouble("whiteG", 1.0)));
+            c.WhiteB = Math.Max(0.1, Math.Min(4.0, PrefDouble("whiteB", 1.0)));
             c.BandFrac = PrefDouble("bandFrac", 0.08);
             if (c.BandFrac <= 0.0) c.BandFrac = 0.08;
             if (c.BandFrac > 0.5) c.BandFrac = 0.5;
-            c.WledIp = PrefString("wledIp", "192.168.86.18");
+
+            // ---- endpoints: all empty by default, so a fresh install sends nothing anywhere ----
+            c.WledIp = PrefString("wledIp", "");
             c.WledPort = PrefInt("wledPort", WledOutput.DefaultPort);
+            if (c.WledPort < 1 || c.WledPort > 65535) c.WledPort = WledOutput.DefaultPort;
             c.WledTimeout = PrefInt("wledTimeout", WledOutput.DefaultTimeoutSeconds);
             if (c.WledTimeout < 1) c.WledTimeout = 1;
             if (c.WledTimeout > 255) c.WledTimeout = 255;
-            c.Endpoint = PrefString("probeEndpoint", "http://192.168.86.101:8791").TrimEnd('/');
+            c.Endpoint = PrefString("probeEndpoint", "").TrimEnd('/');
             c.StatsIntervalSec = PrefInt("statsIntervalSec", 5);
             if (c.StatsIntervalSec < 1) c.StatsIntervalSec = 1;
-            // The local-API endpoint is steerable the same way the stats endpoint is, so the port
-            // can be changed without a rebuild if a device exposes it elsewhere.
             c.PowerUrl = PrefString("powerStateUrl", PowerStateProbe.DefaultUrl);
+            c.ControlUrl = PrefString("controlUrl", "");
 
-            // ---- the request the main loop uses ----
-            c.ControlUrl = PrefString("controlUrl", "http://192.168.86.101:8792/control");
-            c.MapOffset = PrefInt("mapOffset", 58);   // dialled in on hardware 2026-09-11
-            if (c.MapOffset < 0) c.MapOffset = 0;
+            // ---- mapping: which LED shows zone 0, and which way the ring runs ----
+            c.MapOffset = PrefInt("mapOffset", 0);
+            c.MapOffset = ((c.MapOffset % c.ZoneCount) + c.ZoneCount) % c.ZoneCount;
             c.MapReverse = PrefInt("mapReverse", 0) != 0;
-            c.LedCount = PrefInt("ledCount", 75);   // payload length: 73 zones + 2 forced black
-            if (c.LedCount < 4) c.LedCount = 4;
-            if (c.LedCount > 512) c.LedCount = 512;
+
             c.CaptureBackend = PrefString("captureBackend", VideoPlaneCapture.BackendName);
             if (c.CaptureBackend != VideoPlaneCapture.BackendName && c.CaptureBackend != "file")
                 c.CaptureBackend = VideoPlaneCapture.BackendName;
@@ -307,5 +333,8 @@ namespace TizenAmbilight
             if (c.JpegQuality > 100) c.JpegQuality = 100;
             return c;
         }
+
+        /// <summary>Zones (and LEDs) when neither ledCount nor zoneCount is configured.</summary>
+        const int DefaultZoneCount = 73;
     }
 }

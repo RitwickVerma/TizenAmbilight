@@ -1,7 +1,7 @@
 <Project Sdk="Tizen.NET.Sdk/1.1.9">
 
-  <!-- Standalone real-frame ambilight. Tizen .NET, ZERO NuGet dependencies:
-       the PNG decoder, the JSON writer and the capture P/Invoke are all first-party code. -->
+  <!-- Standalone real-frame ambilight. Tizen .NET, ZERO NuGet dependencies: the decoders, the
+       JSON reader/writer and the capture P/Invoke are all first-party code. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>tizen90</TargetFramework>
@@ -24,6 +24,12 @@
     <TizenTpkFiles Include="res/TizenAmbilight.png" Condition="Exists('res/TizenAmbilight.png')">
       <TizenTpkSubDir>shared/res/</TizenTpkSubDir>
       <TizenTpkFileName>TizenAmbilight.png</TizenTpkFileName>
+    </TizenTpkFiles>
+    <!-- Your settings (copy config.example.json to config.json and edit it). Optional: without it
+         every setting takes its default and nothing is sent anywhere. config.json is gitignored. -->
+    <TizenTpkFiles Include="config.json" Condition="Exists('config.json')">
+      <TizenTpkSubDir>res/</TizenTpkSubDir>
+      <TizenTpkFileName>config.json</TizenTpkFileName>
     </TizenTpkFiles>
   </ItemGroup>
 
