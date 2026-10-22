@@ -283,6 +283,8 @@ namespace TizenAmbilight
             // The plane carries PQ-encoded HDR on the reference TV (luma ceiling 148 on two unrelated
             // contents = the PQ code for 203 nits). Set 0 only if your device delivers SDR.
             c.Hdr = PrefInt("hdr", 1) != 0;
+            // HDR reference white in nits: what maps to full scale. 203 is the BT.2408 diffuse white.
+            VideoPlaneCapture.HdrPeakNits = Math.Max(100.0, Math.Min(4000.0, PrefDouble("peak", 203.0)));
             c.Gamut = PrefInt("gamut", 1) != 0;
             // Stride 3 scans ~9x fewer pixels per zone at 1.4% mean error against every pixel. Zone
             // extraction, not capture, was the frame-rate ceiling.
