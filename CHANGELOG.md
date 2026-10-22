@@ -4,7 +4,9 @@ All notable changes. The format follows [Keep a Changelog](https://keepachangelo
 versions follow the TPK manifest version. `Ambilight.Version` (reported in telemetry) is the build
 identifier.
 
-## [Unreleased] — 1.0.0 / v6
+## [Unreleased]
+
+## [1.0.0] — 2026-10-22 (build v6)
 
 ### Added (v6)
 - **DRM fallback.** When the video plane returns `rc=-4` (copy protection) three times in a row, the app
