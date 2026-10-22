@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest package="io.gh.hermes.TizenAmbilight" version="1.0.0" api-version="6.5" xmlns="http://tizen.org/ns/packages">
-    <author>Hermes</author>
+<manifest package="dev.ritwickverma.TizenAmbilight" version="1.0.0" api-version="6.5" xmlns="http://tizen.org/ns/packages">
+    <author>Ritwick Verma</author>
     <profile name="tv" />
-    <service-application appid="io.gh.hermes.TizenAmbilight" exec="TizenAmbilight.dll" multiple="false" nodisplay="true" taskmanage="false" api-version="9" type="dotnet" on-boot="true" auto-restart="false">
+    <service-application appid="dev.ritwickverma.TizenAmbilight" exec="TizenAmbilight.dll" multiple="false" nodisplay="true" taskmanage="false" api-version="9" type="dotnet" on-boot="true" auto-restart="false">
         <label>TizenAmbilight</label>
         <icon>TizenAmbilight.png</icon>
         <splash-screens />
