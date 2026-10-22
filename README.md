@@ -97,8 +97,11 @@ much weaker source:
   spots into the picture (`ppibars`).
 * Colours are the TV's 10-bit measurement reduced to 8 bits, with no HDR decode. How close that is to the
   plane's colours has **not** been measured.
-* Hand-back to the plane when the protection ends is implemented (the plane is polled twice a second),
-  but **has not yet been observed on a real TV**.
+* Hand-back to the plane is implemented (the plane is polled twice a second) and was seen to trigger once
+  on a pre-release build: in a static scene the plane returned `rc=0` while a streaming app was still on
+  screen, the strip went back to the plane, and about 20 s later back to the fallback after three more
+  `rc=-4`. So expect occasional flips between the two sources. The case that matters, protected playback
+  actually ending, has **not** been observed.
 
 Details and the measurement method are in [docs/how-it-works.md](docs/how-it-works.md#drm-fallback).
 

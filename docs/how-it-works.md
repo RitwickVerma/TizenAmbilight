@@ -198,7 +198,11 @@ ppi_ve_get_rgb_measure_pixel       -> mean R, G, B of that block
   (`ppi.init_error`), the app **stays on the plane**, and no further `ppi_ve` call is made. It retries
   at most every 30 s while DRM content keeps the plane withheld.
 * While the fallback carries the strip, the plane is probed **twice a second**. The first `rc=0` hands the
-  strip back. That hand-back is implemented but **has not yet been observed on a real TV**.
+  strip back. The hand-back was seen to trigger once on a pre-release
+  build: in a static scene the plane answered `rc=0` while the streaming app was still visible, the
+  strip returned to the plane, and about 20 s later the plane was `rc=-4` three times again and the
+  fallback re-engaged. The case that matters, protected playback actually ending, has **not** been
+  observed.
 
 ### Hard limits, as measured
 
@@ -249,7 +253,8 @@ picture rectangle. `ppibars=0` turns this off.
 
 * **Colour accuracy against the plane is unmeasured.** Values are 10-bit shifted to 8-bit with no HDR
   decode. The strip follows the picture's colours, but it is not the same pipeline as the plane's.
-* **Hand-back to the plane** is not yet observed live.
+* **Hand-back to the plane** after protected playback really ends has not been observed (only the
+  intermittent static-scene `rc=0` flip described above).
 * Behaviour on any other TV is unknown. The slot count and settle time are read from the TV and clamped,
   nothing is hard-coded to the S84F's values, but that has only been exercised on one set.
 

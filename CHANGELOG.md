@@ -15,7 +15,8 @@ identifier.
   (default), about 1.4 Hz at 73 (measured at a 17 ms settle; the shipped default is the TV-reported 20 ms,
   which measured 80-99 readings/s and 3.3-4.1 Hz per spot at 24 spots). The ~25 fps the strip is rendered at is interpolation between those
   updates, not new measurements. Letterbox bars are detected and cropped (`ppibars`). Hand-back to the
-  plane is implemented but **not yet observed on a real TV**; colour fidelity against the plane is
+  plane is implemented and was seen to trigger once on a pre-release build (a static-scene `rc=0` while a
+  streaming app was on screen); the real end of protected playback has **not** been observed; colour fidelity against the plane is
   **unmeasured**. See `docs/how-it-works.md#drm-fallback`.
 - Settings `ppiZones` (default 24) and `ppiSettleMs` (default: the TV-reported value); `ppiZones` is also an
   optional field in the Apps2Samsung catalog entry. Control tokens `backend=2`, `pz`, `psleep`, `ppibars`
