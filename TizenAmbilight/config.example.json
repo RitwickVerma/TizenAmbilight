@@ -1,12 +1,9 @@
 {
-  "_comment": "Copy to config.json (same folder), edit, then build. Keys starting with _ are ignored. Every key is optional; see the README 'Configuration' section for the full list.",
-
-  "wledIp": "192.168.1.50",
-  "ledCount": 73,
+  "_comment": "TizenAmbilight settings. Copy to config.json in this folder, fill in, rebuild. Without a config.json this file ships as the template, and Apps2Samsung fills in the four lines below from its install form, so keep their exact formatting. Every key is optional; the README lists them all.",
+  "wledIp": "",
+  "ledCount": 0,
   "mapOffset": 0,
   "mapReverse": 0,
-
-  "_optional_helpers": "Leave empty to disable. Run tools/control-server.py and tools/stats-receiver.py on a computer on the same LAN.",
   "controlUrl": "",
   "probeEndpoint": ""
 }

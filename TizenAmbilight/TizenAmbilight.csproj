@@ -25,9 +25,13 @@
       <TizenTpkSubDir>shared/res/</TizenTpkSubDir>
       <TizenTpkFileName>TizenAmbilight.png</TizenTpkFileName>
     </TizenTpkFiles>
-    <!-- Your settings (copy config.example.json to config.json and edit it). Optional: without it
-         every setting takes its default and nothing is sent anywhere. config.json is gitignored. -->
+    <!-- Settings, shipped as res/config.json. Your own config.json (gitignored) wins; otherwise the
+         committed template ships, which is what the Apps2Samsung install form patches. -->
     <TizenTpkFiles Include="config.json" Condition="Exists('config.json')">
+      <TizenTpkSubDir>res/</TizenTpkSubDir>
+      <TizenTpkFileName>config.json</TizenTpkFileName>
+    </TizenTpkFiles>
+    <TizenTpkFiles Include="config.example.json" Condition="!Exists('config.json')">
       <TizenTpkSubDir>res/</TizenTpkSubDir>
       <TizenTpkFileName>config.json</TizenTpkFileName>
     </TizenTpkFiles>

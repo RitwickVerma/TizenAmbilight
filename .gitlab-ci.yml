@@ -1,0 +1,28 @@
+# Runs on the project's linked runner. One .NET job only: the build and the
+# host test harness share it so two SDK containers never run side by side.
+stages: [check, build]
+
+lint:
+  stage: check
+  image: python:3.12-alpine
+  before_script:
+    - apk add --no-cache git
+  script:
+    - python3 tools/check-secrets.py --all
+    - python3 tools/check-apps2samsung.py
+    - python3 -m py_compile tools/*.py decoder-selftest/*.py
+
+build-and-test:
+  stage: build
+  image: mcr.microsoft.com/dotnet/sdk:8.0
+  variables:
+    DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    DOTNET_NOLOGO: "1"
+  script:
+    - dotnet run --project decoder-selftest/DecoderSelfTest.csproj
+    - dotnet msbuild TizenAmbilight/TizenAmbilight.csproj -restore -t:Rebuild -p:Configuration=Release -v:m
+    - mkdir -p dist && cp TizenAmbilight/bin/Release/tizen90/*.tpk dist/
+  artifacts:
+    name: "TizenAmbilight-$CI_COMMIT_SHORT_SHA"
+    paths: [dist/*.tpk]
+    expire_in: 30 days

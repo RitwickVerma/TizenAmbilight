@@ -1,0 +1,29 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Secret scan and catalog-entry check
+        run: |
+          python3 tools/check-secrets.py --all
+          python3 tools/check-apps2samsung.py
+      - name: Host test harness
+        run: dotnet run --project decoder-selftest/DecoderSelfTest.csproj
+      - name: Build TPK
+        run: dotnet msbuild TizenAmbilight/TizenAmbilight.csproj -restore -t:Rebuild -p:Configuration=Release -v:m
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TizenAmbilight-tpk
+          path: TizenAmbilight/bin/Release/tizen90/*.tpk
