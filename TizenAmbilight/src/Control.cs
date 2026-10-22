@@ -77,8 +77,17 @@ namespace TizenAmbilight
                     // NOTE: the parser REQUIRES a numeric value (double.TryParse -> continue), so every
                     // token takes a NUMBER. A string-valued token is silently dropped before it reaches
                     // this switch. backend=1 selects the file path, anything else the video plane.
-                    case "backend": cfg.CaptureBackend = (iv == 1) ? "file" : VideoPlaneCapture.BackendName;
+                    // backend=2 forces the ppi_ve hardware sampler; 0 (or anything else) = video plane, which
+                    // hands over to the sampler by itself while the plane returns rc=-4 (DRM).
+                    case "backend": cfg.CaptureBackend = (iv == 1) ? "file" : (iv == 2) ? PpiCapture.BackendName : VideoPlaneCapture.BackendName;
                                     L("backend switched to " + cfg.CaptureBackend); break;
+                    case "ppibars": if (dv == 0 || dv == 1) PpiCapture.BarsEnabled = dv != 0; break;
+                    case "ppigrid": if (dv == 1) PpiCapture.GridRequest = 1; break;
+                    case "pfresh":  if (iv == 1 || iv == 2) PpiCapture.FreshRequest = iv; break;
+                    // psleep: settle time (ms) between arming the measure slots and reading them back.
+                    // -1 = the TV-reported value. pz: positions measured round the perimeter.
+                    case "psleep":  if (iv >= -1 && iv <= 200) PpiCapture.SleepOverrideMs = iv; break;
+                    case "pz":      if (iv >= 4 && iv <= 73) PpiCapture.PzRequested = iv; break;
                     // Exercises the shutdown path on demand (see SelfTestShutdown).
                     case "shutdown": if (iv == 1) SelfTestShutdown(); break;
                     // HDR reference luminance in nits: what maps to full scale. Content varies above

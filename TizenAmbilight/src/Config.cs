@@ -64,6 +64,8 @@ namespace TizenAmbilight
             public int RequestHeight;
             // "video_plane" : secvideo_api_capture_video_main -> the VIDEO plane, in memory (no file)
             // "file"        : the legacy dc_request_capture_to_file_sync PNG-file path
+            // "ppi"         : the libvideoenhance ppi_ve_* hardware pixel sampler (forced; the plane also
+            //                 falls back to it automatically on rc=-4)
             public string CaptureBackend;
             // ---- zone -> LED mapping (see WledOutput.BuildDrgbMapped) ----
             public int MapOffset;
@@ -319,8 +321,13 @@ namespace TizenAmbilight
             c.MapReverse = PrefInt("mapReverse", 0) != 0;
 
             c.CaptureBackend = PrefString("captureBackend", VideoPlaneCapture.BackendName);
-            if (c.CaptureBackend != VideoPlaneCapture.BackendName && c.CaptureBackend != "file")
+            if (c.CaptureBackend != VideoPlaneCapture.BackendName && c.CaptureBackend != "file" && c.CaptureBackend != PpiCapture.BackendName)
                 c.CaptureBackend = VideoPlaneCapture.BackendName;
+            // ppi_ve fallback tunables (only used while the plane is DRM-withheld, or with captureBackend "ppi").
+            // pz: positions measured round the ring. More = finer picture, slower per-zone refresh.
+            // ppiSettleMs: -1 = the settle time the TV reports (default); >=0 overrides it.
+            PpiCapture.PzRequested = Math.Max(4, Math.Min(73, PrefInt("ppiZones", 24)));
+            PpiCapture.SleepOverrideMs = Math.Max(-1, Math.Min(200, PrefInt("ppiSettleMs", -1)));
             c.RequestWidth = PrefInt("requestWidth", CaptureApi.RequestWidth);
             if (c.RequestWidth < 16) c.RequestWidth = 16;
             if (c.RequestWidth > 3840) c.RequestWidth = 3840;

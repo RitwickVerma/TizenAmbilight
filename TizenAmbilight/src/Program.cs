@@ -74,7 +74,7 @@ namespace TizenAmbilight
         public const string AppId = "dev.ritwickverma.TizenAmbilight";
         // Bump this whenever behaviour changes. It sat at "v3" through the HDR decode, the BT.2020->709
         // gamut map and the adaptive tone curve, which made build identification useless in telemetry.
-        public const string Version = "v5";
+        public const string Version = "v6";
 
         // ---- failure handling ----
         const int FailSleepMs = 200;                     // pause after a frame-less iteration
@@ -173,7 +173,7 @@ namespace TizenAmbilight
             L("config: " + ConfigFile.Source + " (" + ConfigFile.Count + " keys)");
             if (!cfg.HasWled)
                 L("NOTE: no wledIp configured - colours are computed but nothing is sent. " +
-                  "Copy config.example.json to config.json, set wledIp, rebuild.");
+                  "Set wledIp (Apps2Samsung install form, or config.json when building from source).");
             L("control channel: " + (cfg.HasControl ? cfg.ControlUrl : "(none)") +
               "   telemetry: " + (cfg.HasTelemetry ? cfg.Endpoint : "(none)"));
             L("brightness shaping: gain=" + cfg.Gain + " gamma=" + cfg.Gamma +
@@ -193,7 +193,7 @@ namespace TizenAmbilight
             L("png decoder self-test: " + selfTest);
 
             // ---- (1) resolve the capture library ----
-            bool usePlane = cfg.CaptureBackend == VideoPlaneCapture.BackendName;
+            bool usePlane = cfg.CaptureBackend == VideoPlaneCapture.BackendName || cfg.CaptureBackend == PpiCapture.BackendName;
             string vErr = null;
             if (usePlane)
             {
@@ -397,7 +397,10 @@ namespace TizenAmbilight
                                   "safe to redeploy. Clear the control body and restart to resume.");
                                 _pauseLogged = true;
                             }
-                            st.LastStatus = "paused by control channel (no capture calls)";
+                            // wait until the sampler thread holds no native call; only then is "paused" true
+                            bool ppiIdle = PpiCapture.Park();
+                            st.LastStatus = ppiIdle ? "paused by control channel (no capture calls)"
+                                                    : "pausing: ppi sampler still inside a native call";
                             MaybePost(cfg, captureDir, layout, smoothed, st);
                             Thread.Sleep(1000);
                             continue;
@@ -411,14 +414,129 @@ namespace TizenAmbilight
                     ZoneColors raw = null;
                     double capMs = 0, decMs = 0, zMs = 0;
                     string dims = null;
-                    if (cfg.CaptureBackend == VideoPlaneCapture.BackendName)
+                    double ppiDtSec = 0;     // >0 only on a ppi frame: seconds since the previous one
+                    bool forcePpi = cfg.CaptureBackend == PpiCapture.BackendName;
+                    if (!forcePpi && !_ppiAuto) PpiCapture.Park();   // sampler idle (no native ppi calls) unless in use
+                    if (cfg.CaptureBackend == VideoPlaneCapture.BackendName || forcePpi)
                     {
                         // checked every 30 frames, BEFORE the capture call, so a redeploy sees the
                         // app holding no capture in flight
                         lastFrameUtc = DateTime.UtcNow;
-                        VideoPlaneResult vr = VideoPlaneCapture.Capture();
-                        st.LastStatus = vr.Status;
-                        capMs = vr.CaptureMs;
+                        VideoPlaneResult vr = null;
+                        bool usePpi = forcePpi;
+                        if (!forcePpi)
+                        {
+                            // The plane is probed every iteration while it is the source (a rejected call costs
+                            // ~0.1 ms). While the sampler carries the strip the probe is limited to 2/s: the
+                            // first rc=0 is the signal to hand the strip back, and there is no reason to ask
+                            // a DRM-locked plane 25 times a second.
+                            if (_ppiAuto && (DateTime.UtcNow - _lastPlaneProbeUtc).TotalMilliseconds < PlaneProbeWhilePpiMs)
+                                vr = PlaneAssumedLocked;     // not asked: assume still locked
+                            else
+                            {
+                                vr = VideoPlaneCapture.Capture();
+                                _lastPlaneProbeUtc = DateTime.UtcNow;
+                            }
+                            if (!_ppiAuto || vr.Rc != -4 || vr.HasFrame) st.LastStatus = vr.Status;
+                            capMs = vr.CaptureMs;
+                            if (vr.HasFrame)
+                            {
+                                _drmStreak = 0;
+                                if (_ppiAuto)
+                                {
+                                    _ppiAuto = false; st.PpiSwitches++;
+                                    PpiCapture.Park();
+                                    L("video plane returned rc=0 again: back to the video plane (ppi switches=" + st.PpiSwitches + ")");
+                                }
+                            }
+                            else if (vr.Rc == -4)
+                            {
+                                // rc=-4 is DRM: the plane is withheld. rc=-1 ("not ready") is the normal
+                                // post-start burst and must NOT trigger the fallback, and it must not
+                                // reset the streak either, or an rc=-4/-1 mix would never qualify.
+                                if (_drmStreak < 1000000) _drmStreak++;     // telemetry value; bounded
+                                if (!_ppiAuto && _drmStreak >= PpiEnterStreak && EnsurePpi(cfg))
+                                {
+                                    _ppiAuto = true; st.PpiSwitches++;
+                                    L("video plane rc=-4 x" + _drmStreak + " (DRM): falling back to the ppi_ve hardware sampler");
+                                }
+                            }
+                            usePpi = _ppiAuto && !vr.HasFrame;
+                        }
+                        st.BackendActive = usePpi ? (forcePpi ? "ppi(forced)" : "ppi(auto)") : "video_plane";
+
+                        if (usePpi)
+                        {
+                            if (!EnsurePpi(cfg))
+                            {
+                                st.LastStatus = "ppi unavailable: " + (PpiCapture.InitError ?? "init pending");
+                                st.CaptureFail++; st.ConsecutiveFails++;
+                                MaybePost(cfg, captureDir, layout, smoothed, st);
+                                MaybeBlackout(cfg, st);
+                                int pSleep = BackoffSleep(st); BackoffAdvance(st);
+                                Thread.Sleep(pSleep);
+                                continue;
+                            }
+                            if (_ppiRaw == null || _ppiRaw.Count != cfg.ZoneCount) _ppiRaw = new ZoneColors(cfg.ZoneCount);
+                            // Rolling mode: the sampler thread keeps measuring; this loop just takes the
+                            // latest values (interpolated onto every zone) and renders at targetFps.
+                            PpiCapture.Start();
+                            int have = PpiCapture.Snapshot(_ppiRaw.R, _ppiRaw.G, _ppiRaw.B);
+                            capMs = 0;
+                            if (have == 0)
+                            {
+                                st.LastStatus = "ppi warming up: no measurement yet";
+                                if (st.CaptureFail % 100 == 1) L("ppi: waiting for the first measurements");
+                                st.CaptureFail++; st.ConsecutiveFails++;
+                                MaybePost(cfg, captureDir, layout, smoothed, st);
+                                MaybeBlackout(cfg, st);
+                                Thread.Sleep(30);
+                                continue;
+                            }
+                            if ((st.PpiFrames & 31) == 0 || !st.LastStatus.StartsWith("ppi", StringComparison.Ordinal))
+                                st.LastStatus = (forcePpi ? "ppi(forced) " : "ppi(auto) ") + "rolling pz=" + PpiCapture.PzRequested +
+                                                " settle=" + PpiCapture.EffectiveSleepMs + "ms" +
+                                                (vr != null ? "; plane: " + vr.Status : "");
+                            st.LastRetPath = "(ppi_ve hardware sampler)";
+                            st.CaptureOk++;
+                            st.ConsecutiveFails = 0;
+                            st.BackoffStep = 0;
+                            NoteGoodFrame();
+                            st.PpiFrames++; st.PpiWindow++;
+                            NoteContentPpi(_ppiRaw, st);
+                            // adaptive tone curve: the same median-luma -> gamma control as the plane path,
+                            // fed from the per-zone luma (the sampler has no luma plane to histogram)
+                            _lastMedianCode = PpiMedianCode(_ppiRaw);
+                            double wantGammaP = SceneGammaTarget(_lastMedianCode, cfg);
+                            DateTime nowP = DateTime.UtcNow;
+                            if (!gammaInit) { _adaptGamma = wantGammaP; gammaInit = true; }
+                            else
+                            {
+                                double dtp = (nowP - lastMeterUtc).TotalSeconds;
+                                if (dtp <= 0.0 || dtp > 2.0) dtp = 1.0;
+                                double ap = 1.0 - Math.Exp(-dtp / Math.Max(0.05, cfg.AdaptTauS));
+                                _adaptGamma += (wantGammaP - _adaptGamma) * ap;
+                            }
+                            lastMeterUtc = nowP;
+                            st.FrameBytes = (long)(cfg.ZoneCount * 3);
+                            st.LastFileBytes = -1;
+                            if (layout == null || layout.Total != cfg.ZoneCount)
+                            {
+                                // Same zone layout (and therefore the same zone order and LED mapping) the
+                                // plane uses: built at the plane's aspect, so a plane frame arriving later
+                                // finds LastDims unchanged and does not reset the smoothing state.
+                                layout = new ZoneLayout(VideoPlaneCapture.PlaneW, VideoPlaneCapture.PlaneH, cfg.ZoneCount, cfg.BandFrac);
+                                smoothed = null;
+                                st.LastDims = VideoPlaneCapture.PlaneW + "x" + VideoPlaneCapture.PlaneH;
+                                L("zone layout (ppi): " + layout.Describe());
+                            }
+                            raw = _ppiRaw;
+                            zMs = 0;
+                            ppiDtSec = (DateTime.UtcNow - _lastPpiFrameUtc).TotalSeconds;
+                            _lastPpiFrameUtc = DateTime.UtcNow;
+                            if (ppiDtSec < 0.005 || ppiDtSec > 2.0) ppiDtSec = 0.04;
+                            goto smoothStage;
+                        }
                         if (!vr.HasFrame)
                         {
                             st.CaptureFail++;
@@ -710,6 +828,10 @@ namespace TizenAmbilight
                     // smearing through it. Delta is taken BEFORE smoothing, against the old average.
                     double frameDelta = (smoothed == null) ? 0.0 : Colors.MeanDelta(smoothed, raw);
                     double useAlpha = (frameDelta > cfg.AlphaCut) ? cfg.AlphaFast : cfg.Alpha;
+                    // The EMA constants are PER FRAME at the plane's ~25 fps. The sampler delivers a frame
+                    // every 0.4-0.75 s, so the same alpha would take seconds to follow the picture. Rescale
+                    // to the same time constant: (1-a_eff) = (1-a)^(dt*25).
+                    if (ppiDtSec > 0) useAlpha = 1.0 - Math.Pow(1.0 - useAlpha, ppiDtSec * 25.0);
 
                     if (smoothed == null)
                     {

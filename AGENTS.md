@@ -74,8 +74,8 @@ CI: `.gitlab-ci.yml` (lint job + one .NET build-and-test job; runs on the linked
 ## Code conventions
 - C#: block-scoped `namespace TizenAmbilight { }` in every src file, `public static class` per concern, XML `///` doc comments that record *why* (several describe past bugs). No analyzers/`.editorconfig`/formatter in repo. Zero NuGet dependencies by design; keep it that way.
 - `CS0649` is suppressed in the app csproj (`NoWarn`).
-- Bump `Ambilight.Version` (`"v5"`) in `Program.cs` whenever behaviour changes, so telemetry identifies the build.
-- Control tokens take numbers only; validate ranges in the `Control.cs` token switch.
+- Bump `Ambilight.Version` (`"v6"`) in `Program.cs` whenever behaviour changes, so telemetry identifies the build.
+- Control tokens take numbers only; validate ranges in the `Control.cs` token switch. A new end-user tunable also gets a `config.json` key; if it belongs in the Apps2Samsung form, add the line to `config.example.json` and a field to the catalog entry, then run `tools/check-apps2samsung.py`.
 - Python: stdlib `argparse` + `http.server`, shebang `python3`; no linter or type checker configured.
 - Commits: no enforced style; history uses `type: summary` (`security:`, `gitignore:`) with an explanatory body. Use conventional commits.
 - Never commit certs, keystores, tokens; run `python3 tools/check-secrets.py --staged` first.
@@ -83,7 +83,7 @@ CI: `.gitlab-ci.yml` (lint job + one .NET build-and-test job; runs on the linked
 ## Pitfalls
 1. `tizen install` SIGKILLs the app; mid-capture this wedges the TV scaler (every later capture returns `rc=-2` until a TV power cycle; README: 3 of 3 deploys). Always set `pause` first (`a57ffb8`; `tools/control-server.py` docstring).
 2. Control tokens with non-numeric values are silently dropped (`double.TryParse` then `continue`); NaN/Infinity are rejected explicitly. A string token looks implemented and does nothing (`a57ffb8`, `Program.cs` token parser comment).
-3. Capture `rc=-1` right after start is normal "not ready"; `-2` is wedge; `-4` is DRM content (README).
+3. Capture `rc=-1` right after start is normal "not ready"; `-2` is wedge; `-4` is DRM content: after 3 in a row the app falls back to the `libvideoenhance` `ppi_ve_*` RGB sampler (`PpiCapture.cs`, `PpiBackend.cs`; README "DRM content"). Never address a measure slot at or above the count `ppi_ve_get_rgb_measure_condition` reports (a wrong index may wedge the TV like `rc=-2`), and never claim the render fps as the sampler's rate: each measured spot refreshes at 1-15 Hz. Hand-back to the plane is implemented but not yet observed live.
 4. A stale frame is not a live frame: a paused video leaves its last plane, so capture keeps succeeding. Stale-signature fade exists for this (`a57ffb8`).
 5. Unwritten LEDs keep WLED's own output: write unused LEDs black every frame; a single blackout datagram expires, so blanking re-sends at most once per second (`BlackoutHoldMs` must stay well under the blackout timeout byte) (`a57ffb8`, `WledOutput.cs`, `Program.cs`).
 6. `NoteGoodFrame()` was only called on the video-plane path, so with `captureBackend=file` the strip was never blanked after a stall; both backends must call it (`a57ffb8`, `Program.cs` comment).

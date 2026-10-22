@@ -41,8 +41,10 @@ reader and writer, and the capture P/Invoke are all first-party code. Keep it th
 
 Samsung TVs only install packages signed with a **distributor certificate that lists the TV's DUID**.
 A TPK signed for one TV therefore installs on no other TV, and a "signed release" that installs
-everywhere is impossible outside the Samsung store. That is why releases ship default-signed and
-Apps2Samsung re-signs them per user.
+everywhere is impossible outside the Samsung store. That is why a release only attaches a build made
+with the Tizen SDK's default certificate (a retail TV rejects it): it is input for Apps2Samsung, which
+re-signs it for each user's TV, or for you to re-sign below. Nothing in this repo is signed for any
+particular TV, and no signing material is committed.
 
 To do it yourself:
 
