@@ -1,0 +1,37 @@
+name: Device report
+description: Tried TizenAmbilight on a TV? Tell us what happened (working or not).
+labels: ["device report"]
+body:
+  - type: markdown
+    attributes:
+      value: "Thanks! Reports from TVs other than the S84F are the most useful contribution right now. Please remove all IP addresses."
+  - type: input
+    id: model
+    attributes: { label: TV model code, placeholder: QN65S90D }
+    validations: { required: true }
+  - type: input
+    id: year
+    attributes: { label: Model year }
+  - type: input
+    id: firmware
+    attributes: { label: Tizen version / firmware, description: Settings → Support → About This TV }
+  - type: dropdown
+    id: install
+    attributes:
+      label: Installed via
+      options: [Apps2Samsung, Own build + Tizen CLI]
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options: [Strip works, Strip stays dark, Wrong or odd colours, Other]
+    validations: { required: true }
+  - type: textarea
+    id: telemetry
+    attributes:
+      label: Telemetry
+      description: If you ran tools/stats-receiver.py, paste the tv, last_status, window_fps and log_tail fields from latest.json.
+      render: text
+  - type: textarea
+    id: content
+    attributes: { label: Content tested, description: "Built-in app, HDMI input, HDR or SDR, ..." }

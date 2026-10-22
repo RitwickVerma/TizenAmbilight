@@ -1,0 +1,23 @@
+name: Bug report
+description: Something does not work as documented.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: "Security issue? Do not file it here; see SECURITY.md. Please remove all IP addresses."
+  - type: textarea
+    id: what
+    attributes: { label: "What happened, and what did you expect?" }
+    validations: { required: true }
+  - type: input
+    id: tv
+    attributes: { label: TV model / Tizen version }
+  - type: input
+    id: version
+    attributes: { label: App version, description: version in telemetry, or the release tag }
+  - type: textarea
+    id: config
+    attributes: { label: config.json (IPs removed), render: json }
+  - type: textarea
+    id: log
+    attributes: { label: Telemetry log_tail, render: text }

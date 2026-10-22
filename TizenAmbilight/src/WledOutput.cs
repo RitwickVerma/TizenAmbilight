@@ -14,13 +14,12 @@ namespace TizenAmbilight
     ///
     /// 73 LEDs => 2 + 73*3 = 221 bytes. Sent as a single UDP datagram.
     ///
-    /// SAFETY: this class never sends anything unless Program explicitly asks it to. Program asks
-    /// when the `outputEnabled` preference is true, and on THIS device that default is TRUE (a
-    /// deliberate choice on explicit request) - so a stock install here does send packets.
+    /// SAFETY: this class never sends anything unless the app asks it to, which it does only when
+    /// `outputEnabled` is true AND a `wledIp` is configured. A fresh install sends nothing.
     ///
     /// BLANKING: <see cref="SendBlackout"/> is the deliberate "turn the strip off" packet — the
-    /// same DRGB frame with every LED at 0,0,0 and a SHORT timeout, so WLED both goes dark now and
-    /// releases the realtime lock a second later. The app sends it when capture has failed for a
+    /// same DRGB frame with every LED at 0,0,0. While the app wants the strip dark it re-sends this
+    /// inside the timeout, because a single blackout expires and WLED reverts to its own colour. The app sends it when capture has failed for a
     /// sustained run (the strip would otherwise sit latched on a stale frame) and from its
     /// terminate callback. A hard kill cannot run that callback, which is why every packet carries
     /// the short timeout rather than relying on the callback alone.
@@ -31,8 +30,10 @@ namespace TizenAmbilight
         public const int DefaultPort = 21324;
         public const byte DefaultTimeoutSeconds = 1;
 
-        /// <summary>Timeout byte used for a blackout packet: 1 s, i.e. dark now and WLED stops
-        /// holding the realtime channel shortly after.</summary>
+        /// <summary>WLED accepts at most 490 LEDs in one DRGB datagram (2 + 490*3 = 1472 bytes, one
+        /// Ethernet MTU of UDP payload). Larger strips would need the DNRGB protocol.</summary>
+        public const int MaxDrgbLeds = 490;
+
         /// <summary>Timeout byte for the stall BLACKOUT packet. Deliberately longer than the normal
         /// frame timeout: the app re-sends every BlackoutHoldMs (1 s), so 4 s means up to three
         /// consecutive lost packets still leave WLED latched to black. At 1 s a single dropped datagram
@@ -58,12 +59,11 @@ namespace TizenAmbilight
             return p;
         }
 
-        // ---- zone -> LED MAPPING (added 2026-09-11) ----
+        // ---- zone -> LED MAPPING ----
         // The zone colours are computed in FRAME order: top (L->R), right (T->B), bottom (R->L),
         // left (B->T), clockwise from the frame's top-left. Where those land on the PHYSICAL strip
-        // depends entirely on which corner the installer started at and which way the strip runs.
-        // We assumed top-left clockwise; the user reports the pattern is offset around the ring, so
-        // both are now steerable without a rebuild:
+        // depends entirely on which corner the installer started at and which way the strip runs,
+        // so both are steerable without a rebuild:
         //     mapOffset  - rotate the ring by this many LEDs (0..count-1)
         //     mapReverse - run the ring the other way
         // With ledCount > zoneCount the extra LEDs are written BLACK, NOT spread proportionally - the
@@ -132,10 +132,9 @@ namespace TizenAmbilight
             return p;
         }
 
-        // ---- brightness shaping (added 2026-09-11) ----
-        // WLED was already at bri=255 with the auto-brightness-limiter off, so the only place left
-        // to make the strip brighter is here. A dark scene averages to dark zone colours and no
-        // amount of WLED gain fixes that. Two knobs, applied per channel through a 256-entry LUT so
+        // ---- brightness shaping ----
+        // A dark scene averages to dark zone colours, and no amount of WLED brightness fixes that,
+        // so the curve lives here. Two knobs, applied per channel through a 256-entry LUT so
         // the hot path stays a table lookup:
         //     out = clamp( gain * 255 * (v/255)^(1/gamma) )
         // gamma > 1 lifts mid-tones (the perceptual "brighter" people actually want);
@@ -153,8 +152,8 @@ namespace TizenAmbilight
         ///
         ///   2. GAMMA / GAIN on the stretched value, for taste.
         ///
-        /// black = 16 is the classic video black level (16/255) and a good default: it crushes
-        /// sub-black noise and letterbox residue without eating shadow detail.
+        /// black = 16 is the classic video black level (16/255); the app's default of 12 is tuned for
+        /// the PQ-decoded plane (see the `black` note in Config.cs).
         /// </summary>
         static byte[] Lut(double gain, double gamma, double black)
         {
@@ -176,24 +175,6 @@ namespace TizenAmbilight
             }
             _lut = t; _lutGain = gain; _lutGamma = gamma; _lutBlack = black;
             return t;
-        }
-
-        /// <summary>Same datagram as BuildDrgb, with gain/gamma applied to every channel.</summary>
-        public static byte[] BuildDrgb(ZoneColors colors, byte timeoutSeconds, double gain, double gamma)
-        {
-            if (colors == null) throw new ArgumentNullException(nameof(colors));
-            byte[] t = Lut(gain, gamma, 0.0);   // legacy overload: no black-level crush
-            byte[] p = new byte[2 + colors.Count * 3];
-            p[0] = ProtocolDrgb;
-            p[1] = timeoutSeconds;
-            int o = 2;
-            for (int i = 0; i < colors.Count; i++)
-            {
-                p[o++] = t[colors.R[i]];
-                p[o++] = t[colors.G[i]];
-                p[o++] = t[colors.B[i]];
-            }
-            return p;
         }
 
         /// <summary>Build the all-off DRGB datagram for <paramref name="ledCount"/> LEDs: every

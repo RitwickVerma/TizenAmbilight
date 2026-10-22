@@ -460,6 +460,81 @@ namespace DecoderSelfTest
                 }
             }
 
+            // ============================================================ 10. zone -> LED mapping
+            Console.WriteLine();
+            Console.WriteLine("[10] DRGB zone -> LED mapping (offset, reverse, black tail)");
+            {
+                var z = new ZoneColors(10);
+                for (int i = 0; i < 10; i++) { z.R[i] = (byte)(10 + i); z.G[i] = (byte)(10 + i); z.B[i] = (byte)(10 + i); }
+                // gain 1, gamma 1, black 0 is the identity tone curve, so output bytes are zone bytes.
+                byte[] m = WledOutput.BuildDrgbMapped(z, 2, 1.0, 1.0, 0.0, 3, false, 12);
+                Check(m.Length == 2 + 12 * 3, "payload sized to ledCount, not zone count", m.Length.ToString());
+                Check(m[2] == 13 && m[2 + 6 * 3] == 19 && m[2 + 7 * 3] == 10,
+                      "offset 3: LED 0 shows zone 3 and the ring wraps",
+                      m[2] + "," + m[2 + 6 * 3] + "," + m[2 + 7 * 3]);
+                Check(m[2 + 10 * 3] == 0 && m[2 + 11 * 3 + 2] == 0, "LEDs past the zone count are sent black",
+                      m[2 + 10 * 3] + "," + m[2 + 11 * 3 + 2]);
+                byte[] rv = (byte[])WledOutput.BuildDrgbMapped(z, 2, 1.0, 1.0, 0.0, 0, true, 10).Clone();
+                Check(rv[2] == 10 && rv[2 + 1 * 3] == 19 && rv[2 + 9 * 3] == 11,
+                      "reverse runs the ring the other way from zone 0",
+                      rv[2] + "," + rv[2 + 3] + "," + rv[2 + 27]);
+                Check(WledOutput.BuildBlackout(5).Length == 17 && WledOutput.BuildBlackout(5)[1] == WledOutput.BlackoutTimeoutSeconds,
+                      "blackout packet: 5 LEDs, blackout timeout byte", "");
+                Check(2 + WledOutput.MaxDrgbLeds * 3 <= 1472, "DRGB LED cap fits one 1472-byte UDP payload",
+                      (2 + WledOutput.MaxDrgbLeds * 3).ToString());
+            }
+
+            // ============================================================ 11. config.json
+            Console.WriteLine();
+            Console.WriteLine("[11] config.json parser");
+            {
+                var c = ConfigFile.Parse("\uFEFF{ \"wledIp\": \"10.0.0.5\", \"ledCount\": 120, \"hdr\": false,\n" +
+                                         " \"gamma\": \"1.3\", \"_comment\": \"x\", \"esc\": \"a\\\"b\\u0041\" }");
+                ConfigFile.Set(c);
+                string sv; double dv;
+                Check(ConfigFile.TryGetString("wledIp", out sv) && sv == "10.0.0.5", "string value", sv);
+                Check(ConfigFile.TryGetDouble("ledCount", out dv) && dv == 120, "number value", dv.ToString());
+                Check(ConfigFile.TryGetDouble("hdr", out dv) && dv == 0, "boolean reads as 0/1", dv.ToString());
+                Check(ConfigFile.TryGetDouble("gamma", out dv) && Math.Abs(dv - 1.3) < 1e-12, "numeric string reads as a number", dv.ToString());
+                Check(!ConfigFile.TryGetString("_comment", out sv), "_-prefixed keys are ignored", sv ?? "absent");
+                Check(ConfigFile.TryGetString("esc", out sv) && sv == "a\"bA", "string escapes", sv);
+                Check(!ConfigFile.TryGetDouble("missing", out dv), "missing key falls back to default", "");
+                Check(Throws(() => ConfigFile.Parse("{ \"a\": 1, }")), "trailing comma rejected", "");
+                Check(Throws(() => ConfigFile.Parse("{ \"a\": [1] }")), "nested array rejected", "");
+                Check(Throws(() => ConfigFile.Parse("{ \"a\": 1 } x")), "trailing content rejected", "");
+                Check(Throws(() => ConfigFile.Parse("{ \"a\": nan }")), "bare NaN rejected", "");
+                var nanStr = ConfigFile.Parse("{ \"a\": \"NaN\" }");
+                ConfigFile.Set(nanStr);
+                Check(!ConfigFile.TryGetDouble("a", out dv), "\"NaN\" string is refused as a number", "");
+
+                string example = Path.GetFullPath(Path.Combine(dataDir, "..", "..", "TizenAmbilight", "config.example.json"));
+                bool exOk = false; string exErr = "";
+                try { exOk = ConfigFile.Parse(File.ReadAllText(example)).ContainsKey("wledIp"); }
+                catch (Exception e) { exErr = e.Message; }
+                Check(exOk, "config.example.json parses and names wledIp", exErr == "" ? example : exErr);
+
+                string missing = Path.Combine(Path.GetTempPath(), "amb-no-such-config.json");
+                ConfigFile.Load(missing);
+                Check(ConfigFile.Source == "none" && ConfigFile.Count == 0, "missing file loads nothing, no error", ConfigFile.Source);
+                string bad = Path.Combine(Path.GetTempPath(), "amb-bad-config-" + Guid.NewGuid().ToString("N") + ".json");
+                File.WriteAllText(bad, "{ \"wledIp\": ");
+                ConfigFile.Load(bad);
+                File.Delete(bad);
+                Check(ConfigFile.Source.StartsWith("error:") && ConfigFile.Count == 0,
+                      "malformed file is reported and ignored as a whole", ConfigFile.Source);
+            }
+
+            // ============================================================ 12. TV power-state parsing
+            Console.WriteLine();
+            Console.WriteLine("[12] TV local-API PowerState extraction");
+            {
+                Check(PowerStateProbe.ExtractStringValue("{\"device\":{\"PowerState\": \"standby\"}}", "PowerState") == "standby",
+                      "nested PowerState string found", "");
+                Check(PowerStateProbe.ExtractStringValue("{\"PowerState\":null,\"Version\":\"2.0\"}", "PowerState") == null,
+                      "non-string value returns null, not the next key", "");
+                Check(PowerStateProbe.ExtractStringValue("{}", "PowerState") == null, "absent key returns null", "");
+            }
+
             Console.WriteLine();
             Console.WriteLine("==================================================");
             Console.WriteLine("PASSED " + _pass + "   FAILED " + _fail);

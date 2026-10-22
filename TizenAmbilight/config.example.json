@@ -1,0 +1,9 @@
+{
+  "_comment": "TizenAmbilight settings. Copy to config.json in this folder, fill in, rebuild. Without a config.json this file ships as the template, and Apps2Samsung fills in the four lines below from its install form, so keep their exact formatting. Every key is optional; the README lists them all.",
+  "wledIp": "",
+  "ledCount": 0,
+  "mapOffset": 0,
+  "mapReverse": 0,
+  "controlUrl": "",
+  "probeEndpoint": ""
+}

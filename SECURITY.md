@@ -22,6 +22,9 @@ trade-off, and it is the single most important thing to understand about it:
 | Telemetry (`<probeEndpoint>/probe`) | unauthenticated HTTP POST of JSON | anyone who can reach the host |
 | TV local API (`127.0.0.1:8001`) | polled for power state | the app only (loopback) |
 
+Out of the box the app sends nothing anywhere: `wledIp`, `controlUrl` and `probeEndpoint` are empty
+until you set them, and the app never opens a listening socket on the TV.
+
 Consequences you should accept knowingly:
 
 * **Do not expose the control or telemetry ports to an untrusted network** (no port forwarding, no
@@ -52,6 +55,9 @@ python3 tools/check-secrets.py --all        # whole tree
 A Tizen signing profile or `.p12` leaked here would let anyone sign an app for a device that trusts
 that certificate. Keep them outside the tree entirely.
 
+Your own `TizenAmbilight/config.json` holds LAN addresses and is gitignored for that reason. Release
+TPKs ship only the empty template, `config.example.json`.
+
 ## Firmware update path
 
 If this app drives a WLED controller, note that **WLED's HTTP API is unauthenticated by default**:
@@ -62,5 +68,5 @@ app can enforce.
 
 ## Supported versions
 
-`master` only. There are no releases; the capture ABI this depends on is reverse-engineered and
-unversioned, so an old build is not a supported artifact.
+The latest release and `master`. The capture ABI this depends on is reverse-engineered and
+unversioned, so older builds are not supported artifacts: update before reporting.
