@@ -16,6 +16,9 @@ namespace TizenAmbilight
             public long CaptureOk, CaptureFail, DecodeFail, Frames;
             public long JpegFramesSkipped;      // captured a non-PNG format we cannot decode yet
             public long VideoPlaneFrames;       // frames delivered by the in-memory video-plane backend
+            public long PpiFrames, PpiWindow;   // full sweeps delivered by the ppi_ve hardware sampler
+            public long PpiSwitches;            // plane<->sampler handovers
+            public string BackendActive = "video_plane";
             public string LastMapping = "";
             public double LastAlpha;
             public double LastPunch = 1.0;
@@ -113,6 +116,16 @@ namespace TizenAmbilight
                 { "power_poll_cache_ms", (long)PowerPollCacheMs },
                 { "power_probe_url", cfg.PowerUrl },
             };
+
+            // ---- capture backend / ppi fallback ----
+            w["backend_cfg"] = cfg.CaptureBackend;
+            w["backend_active"] = st.BackendActive;
+            w["ppi_auto_engaged"] = _ppiAuto;
+            w["drm_streak"] = (long)_drmStreak;
+            w["ppi_switches"] = st.PpiSwitches;
+            w["ppi_frames_total"] = st.PpiFrames;
+            w["ppi_frames_window"] = st.PpiWindow;
+            w["ppi"] = PpiCapture.Describe();
 
             if (layout != null)
             {
@@ -223,7 +236,9 @@ namespace TizenAmbilight
             w["mapping_live"] = st.LastMapping;
 
             if (st.LastSendErr != null) w["wled_last_error"] = st.LastSendErr;
-            w["output_note"] = cfg.OutputEnabled
+            w["output_note"] = !cfg.HasWled
+                ? "IDLE: no wledIp configured - colours are computed but no packet is sent anywhere."
+                : cfg.OutputEnabled
                 ? "outputEnabled is TRUE \u2014 DRGB datagrams are being sent to " + cfg.WledIp + ":" + cfg.WledPort +
                   " for " + cfg.LedCount + " LEDs (" + cfg.ZoneCount + " zones)."
                 : "outputEnabled is FALSE \u2014 no UDP packet has been sent.";
@@ -234,6 +249,7 @@ namespace TizenAmbilight
             lock (_postLock) { _pendingPost = json; }
 
             st.WindowFrames = 0;
+            st.PpiWindow = 0;
             st.SumCapture = 0; st.SumZones = 0; st.SumTotal = 0; st.SumSmooth = 0; st.SumDecode = 0;
             st.Window.Restart();
         }

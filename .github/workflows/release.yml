@@ -1,9 +1,11 @@
 name: release
 
 # Push a tag vX.Y.Z (matching the manifest version) to publish a GitHub Release
-# with the TPK attached. Apps2Samsung installs from the latest release and
-# re-signs the TPK with each user's own certificate, so the default-signed build
-# is the right artifact.
+# with the TPK attached. The TPK is signed with the Tizen SDK's DEFAULT certificate,
+# which a retail TV rejects, and it is NOT installable as-is. Samsung TVs only accept a
+# package signed with a certificate that embeds that TV's DUID, so a pre-signed release
+# cannot exist. Apps2Samsung downloads this file and re-signs it for each user's own TV;
+# the file name and release notes say so on purpose.
 
 on:
   push:
@@ -36,7 +38,7 @@ jobs:
         run: |
           dotnet msbuild TizenAmbilight/TizenAmbilight.csproj -restore -t:Rebuild -p:Configuration=Release -v:m
           mkdir dist
-          cp TizenAmbilight/bin/Release/tizen90/*.tpk "dist/TizenAmbilight-${GITHUB_REF_NAME}.tpk"
+          cp TizenAmbilight/bin/Release/tizen90/*.tpk "dist/TizenAmbilight-${GITHUB_REF_NAME}-default-cert.tpk"
           (cd dist && sha256sum *.tpk > SHA256SUMS)
       - name: Publish release
         env:
@@ -44,4 +46,4 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" dist/*.tpk dist/SHA256SUMS \
             --title "TizenAmbilight $GITHUB_REF_NAME" \
-            --notes "See CHANGELOG.md for what changed. Install with Apps2Samsung, or re-sign with your own Samsung certificate (see README)."
+            --notes "See CHANGELOG.md for what changed. The attached TPK is signed with the Tizen SDK default certificate and will NOT install on a retail TV as-is: no pre-signed package can exist, because a TV only accepts a certificate that embeds its own DUID. Install with Apps2Samsung (it re-signs for your TV), or build from source and sign with your own Samsung certificate (see README, Install)."

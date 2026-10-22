@@ -19,6 +19,7 @@ video plane (960x540 NV12, in memory)
 - [Why the video plane](#why-the-video-plane)
 - [Colour handling](#colour-handling)
 - [Zones, sampling and mapping](#zones-sampling-and-mapping)
+- [DRM fallback](#drm-fallback)
 - [Output](#output)
 - [Liveness, standby and safety](#liveness-standby-and-safety)
 - [How this differs from other Tizen ambilights](#how-this-differs-from-other-tizen-ambilights)
@@ -46,7 +47,7 @@ dependency on Samsung libraries and no NuGet packages, and **no `/dev` node is e
 | `0` | success |
 | `-1` | "not ready". Clears by itself; a short burst right after app start is normal. |
 | `-2` | scaler failure. The capture subsystem is wedged until the TV is power-cycled (see [Updating safely](../README.md#updating-safely)). |
-| `-4` | DRM-protected content. The plane is withheld, so the strip goes dark. |
+| `-4` | DRM-protected content (`SEC_VIDEO_ERR_COPY_PROTECTION`). The plane is withheld. After three in a row the app switches to the TV's colour-measurement fallback, see [DRM fallback](#drm-fallback). Without that API available, the strip goes dark. |
 
 ### The capture parameter struct
 
@@ -165,6 +166,106 @@ box, so the plane carries no letterbox rows. The row test could only produce fal
 and it was observed cropping 25% of the picture. Adopting a crop needs `barHold` stable frames, and
 giving it back needs six times as many, so a bright cut inside a letterboxed film does not make the
 strip twitch.
+
+---
+
+## DRM fallback
+
+When a streaming app plays protected video, `secvideo_api_capture_video_main` returns `rc=-4`
+(Samsung's `SEC_VIDEO_ERR_COPY_PROTECTION`, named in the decompiled `Tizen.TV.System.ContentAnalysis`).
+The plane is withheld. **TizenAmbilight does not try to get around that:** it never reads the
+protected plane, never touches the secure path, and has no way to obtain a frame of protected video.
+
+What it does instead is use the same interface Samsung's own Hue Sync support uses,
+`libvideoenhance.so` `ppi_ve_*`. That is the video processor's RGB-measure block: you give it a screen
+position and it returns the mean 10-bit R, G, B of a small block there. It is the TV's own sanctioned
+measurement, and what comes out is a colour, not an image.
+
+```
+ppi_ve_get_rgb_measure_condition   -> slot count, block size, settle time, measure-space size
+ppi_ve_set_rgb_measure_position    -> point a slot at (x, y)
+   ... wait the settle time ...
+ppi_ve_get_rgb_measure_pixel       -> mean R, G, B of that block
+```
+
+### When it engages
+
+* After **3 consecutive `rc=-4`** from the plane. `rc=-1` ("not ready") neither counts nor resets the
+  streak, so the normal post-start burst cannot trigger it.
+* Or on demand with the control token `backend=2` (and `backend=0` to leave it).
+* It needs `libvideoenhance.so` and all three symbols. If anything is missing or the TV reports an
+  implausible condition, initialisation fails with a reason in the log and in telemetry
+  (`ppi.init_error`), the app **stays on the plane**, and no further `ppi_ve` call is made. It retries
+  at most every 30 s while DRM content keeps the plane withheld.
+* While the fallback carries the strip, the plane is probed **twice a second**. The first `rc=0` hands the
+  strip back. The hand-back was seen to trigger once on a pre-release
+  build: in a static scene the plane answered `rc=0` while the streaming app was still visible, the
+  strip returned to the plane, and about 20 s later the plane was `rc=-4` three times again and the
+  fallback re-engaged. The case that matters, protected playback actually ending, has **not** been
+  observed.
+
+### Hard limits, as measured
+
+Measured on the S84F with a streaming app playing protected video:
+
+| quantity | value |
+|---|---|
+| measure slots the TV reports (`BlockCount`) | **2**. Addressing a higher index failed with `rc=-1`. The app never addresses a slot at or above the reported count. |
+| fresh-read floor | 15-17 ms after arming a slot (about one 60 Hz frame); shorter waits return the previous position's colour |
+| TV-reported settle time | 20 ms. The app waits exactly that unless you set `ppiSettleMs` / `psleep`. |
+| total readings | **about 100 per second** at 20 ms, about **116 per second** at 17 ms |
+
+Two slots at one reading per settle time is a hard ceiling. It is why the fallback measures a few spots
+instead of the picture.
+
+### Rolling sampler and what "fps" means here
+
+One sampler thread owns every `ppi_ve` call. It walks `pz` positions spread evenly round the screen
+edge (`ppiZones`, default 24), two at a time: arm both slots, wait, read both. The render loop never
+waits for it. At the usual ~25 fps it takes the latest values, interpolates the `pz` measured zones
+linearly round the ring onto all zones, and runs the normal smoothing, tone map and WLED path.
+
+**The render rate is interpolation, not measurement.** The real rate is how often each *spot* is
+refreshed, measured on the S84F at a 17 ms settle (at the default 20 ms settle, the final build
+measured 80-99 readings/s, i.e. 3.3-4.1 Hz per spot at the default 24):
+
+| `pz` (spots) | each spot refreshed |
+|---|---|
+| 8 | 12-15 Hz |
+| 12 | 8-10 Hz |
+| **24 (default)** | **4-5 Hz** |
+| 73 (one per zone) | about 1.4 Hz |
+
+More spots give a finer picture and a slower one. Fast motion on the screen is followed in steps of
+roughly a fifth of a second at the default. The smoothing constants are rescaled to the real update
+interval so the strip does not lag by seconds.
+
+### Letterbox and pillarbox
+
+The measure block sees the composed picture **including black bars**, which the video plane does not
+(the library scales the plane to fill the request). Left alone, every top and bottom zone of a film would
+sit in a bar. The sampler therefore probes the edges every 12 s: a bar is exact digital black (10-bit max
+channel at most 6) spanning at least 6% of the height or width, a change must be seen on two probes in a
+row, and a probe whose centre is also black is discarded. The zone layout is then mapped into the
+picture rectangle. `ppibars=0` turns this off.
+
+### What is not known
+
+* **Colour accuracy against the plane is unmeasured.** Values are 10-bit shifted to 8-bit with no HDR
+  decode. The strip follows the picture's colours, but it is not the same pipeline as the plane's.
+* **Hand-back to the plane** after protected playback really ends has not been observed (only the
+  intermittent static-scene `rc=0` flip described above).
+* Behaviour on any other TV is unknown. The slot count and settle time are read from the TV and clamped,
+  nothing is hard-coded to the S84F's values, but that has only been exercised on one set.
+
+### Diagnostics
+
+Telemetry's `ppi` block reports `ready`, `init_error`, `cond_slots`, `cond_sleep_ms`, `samples_per_s_window`
+and `per_zone_refresh_hz`, bar-probe results, and a six-point raw sample. Two read-only one-shot tokens
+(they only read the slots the TV reported, and change nothing on the strip): `ppigrid=1` measures a
+32x18 thumbnail of the picture (`grid_32x18_hex`), and `pfresh=1|2` runs a freshness test (does a slot
+return the colour of the position it was just pointed at?) at several settle times and reports
+`fresh_test`.
 
 ---
 

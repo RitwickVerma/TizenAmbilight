@@ -79,6 +79,7 @@ namespace TizenAmbilight
         public static void OnShutdown()
         {
             _stopping = true;
+            try { PpiCapture.Shutdown(); } catch { }   // sampler thread: no native ppi call after this
             // Give the render loop a moment to observe the flag and stop sending, so our blackout is
             // genuinely the last datagram. The loop's iteration is tens of ms; 200 ms is ample.
             try { Thread.Sleep(200); } catch { }

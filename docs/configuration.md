@@ -88,7 +88,10 @@ then copy the values into `config.json`.
 | `statsIntervalSec` | `5` | telemetry interval |
 | `zoneHexAll` | `0` | report every zone's colour in telemetry, not a 12-zone sample |
 | `powerStateUrl` | `http://127.0.0.1:8001/api/v2/` | the TV's own power-state API |
-| `captureBackend` | `video_plane` | `video_plane` or `file` (legacy screenshot path) |
+| `captureBackend` | `video_plane` | `video_plane`, `file` (legacy screenshot path) or `ppi` (force the DRM-fallback sampler; normally it engages by itself, see [DRM fallback](how-it-works.md#drm-fallback)) |
+| **DRM fallback** (only used while the plane is DRM-withheld, or with `captureBackend` `ppi`) | | |
+| `ppiZones` | `24` | spots measured round the screen edge, 4-73. More = finer picture, slower per-spot refresh (24 is about 4-5 Hz, 8 is about 12-15 Hz on the reference TV). Also in the Apps2Samsung form as an optional field. |
+| `ppiSettleMs` | `-1` | wait between arming a measure slot and reading it. `-1` = the settle time your TV reports. A lower value raises the rate only if reads stay fresh; check with `pfresh`. |
 | `requestWidth` / `requestHeight` / `compressType` / `jpegQuality` | `640` / `360` / `0` / `90` | legacy file backend only |
 
 `alpha` is applied **per frame**, not per unit of time, so its effective smoothing changes with the
@@ -129,7 +132,9 @@ string-valued token is dropped silently. NaN and Infinity are rejected explicitl
 | `bars` / `brows` / `bthr` | 0/1 / 0/1 / 4–80 | black-bar detection |
 | `zs` / `fps` | 1–8 / 0–120 | zone stride, frame cap |
 | `cw` / `ch` | 64–960 / 64–540 | video-plane request size |
-| `backend` | 0/1 | 0 = video plane, 1 = legacy file backend |
+| `backend` | 0/1/2 | 0 = video plane (hands over to the fallback by itself on DRM), 1 = legacy file backend, 2 = force the DRM-fallback sampler |
+| `pz` / `psleep` / `ppibars` | 4-73 / -1-200 / 0/1 | DRM fallback: spots measured, settle ms (-1 = TV-reported), crop spots to the picture when letterboxed |
+| `ppigrid` / `pfresh` | 1 / 1 or 2 | DRM fallback diagnostics, read-only: 32x18 thumbnail into telemetry; freshness test at several settle times |
 | `zhex` | 0/1 | report every zone in telemetry |
 | `dump` | 1 | send the next frame's raw planes to the collector |
 | `shutdown` | 1 | run the shutdown path (blackout, log flush) and exit |
