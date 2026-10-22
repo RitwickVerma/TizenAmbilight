@@ -85,11 +85,13 @@ interface Samsung's Hue Sync support is built on. It reads a few average colours
 processor, and never receives a frame. The strip keeps following the picture, but it is a different and
 much weaker source:
 
-* **Only 2 measurement slots**, about **100 to 116 readings per second** in total (the TV's own settle
-  time of 20 ms per reading, or about 17 ms where that was tried and checked on the S84F).
+* **Only 2 measurement slots**, so at most about **100 readings per second** at the TV's own settle time
+  (20 ms), or about 116 at 17 ms, the shortest wait that was still fresh on the S84F. The default is the
+  TV-reported 20 ms; on the S84F that measured **80-99 readings per second** in the final build.
 * **Spots, not the picture.** `ppiZones` (default 24) spots are measured round the screen edge and
-  interpolated onto the other zones. Per-spot refresh on the S84F: 8 spots ≈ 12-15 Hz, 12 ≈ 8-10 Hz,
-  **24 ≈ 4-5 Hz (default)**, 73 ≈ 1.4 Hz. The app still renders about 24 frames per second, but that is
+  interpolated onto the other zones. Per-spot refresh on the S84F (measured at a 17 ms settle): 8 spots ≈
+  12-15 Hz, 12 ≈ 8-10 Hz, **24 ≈ 4-5 Hz**, 73 ≈ 1.4 Hz. At the default 20 ms settle the default 24 spots
+  measured **3.3-4.1 Hz**. The app still renders about 24 frames per second, but that is
   *interpolation* between those updates, not new measurements. Do not read it as a frame rate.
 * **Letterbox bars are visible to it** (the plane hides them), so the app detects them and moves the
   spots into the picture (`ppibars`).

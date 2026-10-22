@@ -12,7 +12,8 @@ identifier.
   Sync support uses) and hands back to the plane on the first `rc=0`. It reads spot colours, never a frame
   of protected video. Measured limits on the one tested TV (S84F, Tizen 9): 2 measure slots, about
   100-116 readings per second, per-spot refresh 12-15 Hz at 8 spots, 8-10 Hz at 12, 4-5 Hz at 24
-  (default), about 1.4 Hz at 73. The ~25 fps the strip is rendered at is interpolation between those
+  (default), about 1.4 Hz at 73 (measured at a 17 ms settle; the shipped default is the TV-reported 20 ms,
+  which measured 80-99 readings/s and 3.3-4.1 Hz per spot at 24 spots). The ~25 fps the strip is rendered at is interpolation between those
   updates, not new measurements. Letterbox bars are detected and cropped (`ppibars`). Hand-back to the
   plane is implemented but **not yet observed on a real TV**; colour fidelity against the plane is
   **unmeasured**. See `docs/how-it-works.md#drm-fallback`.

@@ -222,7 +222,8 @@ waits for it. At the usual ~25 fps it takes the latest values, interpolates the 
 linearly round the ring onto all zones, and runs the normal smoothing, tone map and WLED path.
 
 **The render rate is interpolation, not measurement.** The real rate is how often each *spot* is
-refreshed, at about 17 ms settle on the S84F:
+refreshed, measured on the S84F at a 17 ms settle (at the default 20 ms settle, the final build
+measured 80-99 readings/s, i.e. 3.3-4.1 Hz per spot at the default 24):
 
 | `pz` (spots) | each spot refreshed |
 |---|---|
