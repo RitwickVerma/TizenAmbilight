@@ -9,6 +9,12 @@
 decoded video picture straight out of memory, and drives a [WLED](https://kno.wled.ge/) LED strip over
 your Wi-Fi.
 
+[![TizenAmbilight running on a Samsung S84F: the LED glow behind the TV follows the colours of the picture](docs/media/showcase-preview.webp)](docs/media/showcase.mp4)
+
+*A 12-second loop from a phone recording on a 2025 Samsung S84F, using the full-picture capture path at
+about 20 fps. [Watch the full 90-second video](docs/media/showcase.mp4) (720p, audio removed, one
+on-screen popup blurred; the colours are untouched).*
+
 * **No extra hardware.** No capture card, HDMI splitter or Raspberry Pi; just the TV and a WLED strip.
 * **No middleware.** No Hyperion or HyperHDR server in between. One process goes from capture to colour
   maths to UDP, at about 25 fps.
