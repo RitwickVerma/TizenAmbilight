@@ -2,6 +2,9 @@
 # host test harness share it so two SDK containers never run side by side.
 stages: [check, build]
 
+variables:
+  GIT_DEPTH: "1"   # nothing needs history; keeps the media blobs out of old commits off the wire
+
 lint:
   stage: check
   image: python:3.12-alpine
@@ -14,6 +17,14 @@ lint:
 
 build-and-test:
   stage: build
+  needs: []        # run alongside lint instead of after it
+  rules:           # docs/media-only changes skip the .NET build
+    - if: $CI_COMMIT_TAG
+    - changes:
+        - TizenAmbilight/**/*
+        - decoder-selftest/**/*
+        - packaging/**/*
+        - .gitlab-ci.yml
   image: mcr.microsoft.com/dotnet/sdk:8.0
   variables:
     DOTNET_CLI_TELEMETRY_OPTOUT: "1"
