@@ -13,7 +13,7 @@ your Wi-Fi.
 
 *A 10-second loop from a phone recording on a 2025 Samsung S84F, using the full-picture capture path at
 about 20 fps. [Watch the full 32-second video](docs/media/showcase.mp4) (1080p, converted from the
-phone's HDR recording to standard dynamic range, audio removed, one on-screen popup blurred).*
+phone's HDR recording to standard dynamic range, audio removed).*
 
 * **No extra hardware.** No capture card, HDMI splitter or Raspberry Pi; just the TV and a WLED strip.
 * **No middleware.** No Hyperion or HyperHDR server in between. One process goes from capture to colour
