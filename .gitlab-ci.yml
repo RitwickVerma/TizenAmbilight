@@ -2,6 +2,14 @@
 # host test harness share it so two SDK containers never run side by side.
 stages: [check, build]
 
+# Branch and tag pipelines only. Without this, the rules: on build-and-test makes GitLab start
+# merge-request pipelines, which silently leave out every job that has no rules (lint).
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    - when: always
+
 variables:
   GIT_DEPTH: "1"   # nothing needs history; keeps the media blobs out of old commits off the wire
 
