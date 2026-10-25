@@ -128,16 +128,21 @@ Details and the measurement method are in [docs/how-it-works.md](docs/how-it-wor
 > [!IMPORTANT]
 > **There is no downloadable, ready-to-install `.tpk`, and there cannot be one.** Samsung TVs only install
 > packages signed with a certificate that embeds *that TV's* unique ID (DUID). A `.tpk` signed for the
-> author's TV installs on no other TV. The `.tpk` attached to a release is built with the Tizen SDK's
+> author's TV installs on no other TV. The `.tpk` attached to each
+> [release](https://github.com/RitwickVerma/TizenAmbilight/releases) is built with the Tizen SDK's
 > default certificate, which a retail TV rejects; it exists only as input for Apps2Samsung to re-sign.
 > Pick one of the two routes below.
 
-### Option 1 (recommended): Apps2Samsung, no build — *catalog entry pending*
+### Option 1 (recommended): Apps2Samsung, no build
 
-[Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung) signs apps for your specific TV and
-installs them. The catalog entry in this repo (`packaging/apps2samsung/`) has been prepared but **not
-yet accepted into the community catalog**, so it will not show up in the app until it is. Once listed,
-its install form asks for:
+TizenAmbilight is listed in the Apps2Samsung
+[community catalog](https://github.com/Apps2Samsung/tizen-community-packages) (category **Tools**).
+[Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung) downloads the latest
+[release](https://github.com/RitwickVerma/TizenAmbilight/releases), signs it for your TV and installs it.
+
+1. Enable Developer Mode on the TV (see [What you need](#what-you-need)) and connect Apps2Samsung to it.
+2. Make sure your Samsung certificate is **partner** level (see the note below).
+3. Find **TizenAmbilight** in the catalog and install it. The install form asks for:
 
 | field | example |
 |---|---|
@@ -147,14 +152,18 @@ its install form asks for:
 | Strip runs counter-clockwise? | `0` |
 | *(optional)* Spots measured under DRM content (`ppiZones`, 4-73) | `24` |
 
+4. Power-cycle the TV (see [Starting it](#starting-it)).
+
 Not sure about the mapping answers? Use `0` and `0`, then see [Getting the LED mapping right](docs/configuration.md#getting-the-led-mapping-right).
-Leave the optional field alone unless you know you want it.
+Leave the optional field alone unless you know you want it. To change an answer later, install again
+with the new values (read [Updating safely](#updating-safely) first).
 
 > [!IMPORTANT]
 > **Sign with a partner-level certificate.** Apps2Samsung signs at the *public* level unless you choose
-> partner when it creates your certificate. With a public certificate the app runs but Tizen blocks the
-> capture libraries, so the strip stays dark (startup log: `Operation not permitted`). Whether
-> Apps2Samsung's partner option is enough has not been confirmed yet.
+> partner when it creates your certificate; an existing public certificate has to be re-created as
+> partner. With a public certificate the app runs but Tizen blocks the capture libraries, so the strip
+> stays dark (startup log: `Operation not permitted`). An install through Apps2Samsung with its partner
+> option has not been confirmed working yet: please [report](#device-reports) either way.
 
 ### Option 2: build from source and sign it yourself
 
