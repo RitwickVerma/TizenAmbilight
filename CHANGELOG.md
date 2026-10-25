@@ -6,6 +6,12 @@ identifier.
 
 ## [Unreleased]
 
+### Fixed
+- Docs: signing needs a **partner**-level certificate. A public certificate installs and starts the app,
+  but Tizen blocks the capture libraries (`Operation not permitted`). Reported in #1; the docs
+  previously said public was enough.
+- Compatibility table: 2021 / Tizen 6.0 report (#2).
+
 ## [1.0.0] — 2026-10-22 (build v6)
 
 ### Added (v6)
