@@ -53,8 +53,10 @@ To do it yourself:
 2. On the TV: **Apps**, type `1 2 3 4 5` on the remote, turn **Developer Mode** on, enter your computer's
    IP, then **cold-boot** the TV (unplug it for about 60 s). The debug bridge only starts at boot.
 3. `sdb connect <tv-ip>`, then create a Samsung certificate profile in Certificate Manager. Choose the
-   connected TV so its DUID goes into the distributor certificate. The `public` privilege level is
-   enough; the app only uses `internet` and `network.get`.
+   connected TV so its DUID goes into the distributor certificate, and choose the **`partner`**
+   privilege level. With a `public` certificate the app installs and starts, but Tizen refuses to load
+   the capture libraries (`libtzcapturec.so: Operation not permitted` in the startup log), so no frame
+   is ever captured. Reported on a 2025 Q7F (GitHub issue #1); the reference TV is signed partner.
 4. Re-sign and install:
 
    ```bash

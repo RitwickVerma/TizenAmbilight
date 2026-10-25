@@ -54,10 +54,11 @@ that TV. Other models are untested, not known to fail.
 
 | Model year | Tizen | Status |
 |---|---|---|
-| 2025 | 9.0 | ✅ Works on the S84F (OLED, `QN77S84FAEXZA`). Other Tizen 9 models are likely to work but unconfirmed. |
+| 2025 | 9.0 | ✅ Works on the S84F (OLED, `QN77S84FAEXZA`). Other Tizen 9 models are likely to work but unconfirmed; one Q7F user reports capture is blocked unless the app is signed with a partner certificate ([#1](https://github.com/RitwickVerma/TizenAmbilight/issues/1)). |
 | 2026 | 10.0 | ❔ Untested |
 | 2022–2024 | 6.5–8.0 | ❔ Untested. The app targets `tizen90`; whether Tizen 8 and older can run it, and whether they have the libraries below, is unknown. |
-| 2021 and older | ≤ 6.0 | ❌ Unknown, probably not without porting work (older .NET runtime, different capture APIs). Untested. |
+| 2021 | 6.0 | ❌ One report (QN90A, [#2](https://github.com/RitwickVerma/TizenAmbilight/issues/2)): starts only after retargeting to `tizen80`; the video-plane call exists with the documented layout but returns `rc=-95`. Was the build signed partner? Open question. |
+| 2020 and older | ≤ 5.5 | ❌ Unknown, probably not without porting work. Untested. |
 
 What the app needs from the TV:
 
@@ -149,10 +150,17 @@ its install form asks for:
 Not sure about the mapping answers? Use `0` and `0`, then see [Getting the LED mapping right](docs/configuration.md#getting-the-led-mapping-right).
 Leave the optional field alone unless you know you want it.
 
+> [!IMPORTANT]
+> **Sign with a partner-level certificate.** Apps2Samsung signs at the *public* level unless you choose
+> partner when it creates your certificate. With a public certificate the app runs but Tizen blocks the
+> capture libraries, so the strip stays dark (startup log: `Operation not permitted`). Whether
+> Apps2Samsung's partner option is enough has not been confirmed yet.
+
 ### Option 2: build from source and sign it yourself
 
-You need your own Samsung certificate profile **for your own TV's DUID** (Tizen Studio's Certificate
-Manager creates it with the TV connected); that is why nobody else's signed package will work for you.
+You need your own Samsung certificate profile **for your own TV's DUID**, at the **partner** privilege
+level (Tizen Studio's Certificate Manager creates it with the TV connected); that is why nobody else's
+signed package will work for you. A public-level certificate installs, but capture is blocked.
 
 ```bash
 git clone https://github.com/RitwickVerma/TizenAmbilight.git && cd TizenAmbilight
@@ -215,6 +223,7 @@ reinstalling.
 
 | symptom | likely cause and fix |
 |---|---|
+| Startup log says `Operation not permitted` loading a capture library | The package was signed with a **public** certificate. Re-sign with a **partner** certificate ([how](docs/development.md#sign-and-install-with-your-own-certificate)). |
 | Strip never lights up | `wledIp` not set, or not reachable from the TV. Check that WLED shows *"Live"* / a realtime source. Power-cycle the TV once after installing. |
 | Strip was working, now stays dark after an update | A stuck scaler (capture `rc=-2`). Unplug the TV for 60 s. |
 | Strip is coarse and slow during some apps | DRM-protected content (`rc=-4`). The app has switched to the TV's colour-measurement fallback: a few spots, updated a few times per second. This is a hardware limit, see [DRM content](#drm-content). If it goes fully dark instead, that TV has no `libvideoenhance` measure API: the log says `ppi sampler NOT ready`. |
