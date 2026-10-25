@@ -11,6 +11,8 @@ identifier.
   but Tizen blocks the capture libraries (`Operation not permitted`). Reported in #1; the docs
   previously said public was enough.
 - Compatibility table: 2021 / Tizen 6.0 report (#2).
+- README: TizenAmbilight is now listed in the Apps2Samsung community catalog; install steps
+  updated (was "catalog entry pending").
 
 ## [1.0.0] — 2026-10-22 (build v6)
 

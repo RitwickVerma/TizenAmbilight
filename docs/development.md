@@ -164,5 +164,8 @@ comments that record *why* (several document past bugs and must stay accurate). 
 
 The catalog entry in `packaging/apps2samsung/` patches `res/config.json` from the installer's form, by
 exact find/replace on lines of `config.example.json`. `tools/check-apps2samsung.py` (run in CI) fails if
-the two drift apart. To list the app, open a pull request adding that file to
-[tizen-community-packages](https://github.com/Apps2Samsung/tizen-community-packages) under `packages/`.
+the two drift apart. The entry is listed in
+[tizen-community-packages](https://github.com/Apps2Samsung/tizen-community-packages)
+(`packages/RitwickVerma__TizenAmbilight.json`, merged in PR #132). A new release needs no catalog change:
+Apps2Samsung picks up the latest GitHub Release. A change to the entry itself (new form field, new
+label) needs a pull request there as well as here, and the two copies must stay identical.
