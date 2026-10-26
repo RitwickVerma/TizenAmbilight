@@ -1,8 +1,17 @@
 using System;
 using System.Text;
+using System.Collections.Generic;
 
 namespace TizenAmbilight
 {
+    /// <summary>Installed screen edges; omitted configuration keys preserve the full perimeter.</summary>
+    [Flags]
+    public enum ScreenEdges
+    {
+        None = 0, Top = 1, Right = 2, Bottom = 4, Left = 8,
+        All = Top | Right | Bottom | Left
+    }
+
     /// <summary>One LED zone: a half-open rectangle [X0,X1) x [Y0,Y1) of the captured frame,
     /// plus which edge it belongs to and its position along that edge.</summary>
     public sealed class Zone
@@ -63,6 +72,8 @@ namespace TizenAmbilight
     /// For other zone totals the same proportions are derived from the frame's edge lengths
     /// (left/right scale with height, top/bottom with width) and any rounding remainder is
     /// given to the bottom edge — which is what makes 73 come out as 13/23/13/24.
+    /// Partial layouts exclude disabled edges from the weights and place any remainder on the
+    /// last enabled edge in left/top/right/bottom allocation order. Walk order stays clockwise.
     ///
     /// Every zone reads a BORDER BAND: a strip `bandFrac` of the frame dimension thick,
     /// running inward from the edge (default 8% — inside the requested 6-10% range). The image
@@ -76,10 +87,20 @@ namespace TizenAmbilight
         public readonly int BandX, BandY;
         public readonly double BandFrac;
         public readonly Zone[] Zones;
+        public readonly ScreenEdges Edges;
+        public readonly int[] Previous, Next;
+        readonly int[] _component, _position;
+        readonly List<int[]> _runs = new List<int[]>();
 
         public ZoneLayout(int width, int height, int total, double bandFrac)
+            : this(width, height, total, bandFrac, ScreenEdges.All) { }
+
+        public ZoneLayout(int width, int height, int total, double bandFrac, ScreenEdges edges)
         {
-            Total = total;
+            if (width < 1 || height < 1) throw new ArgumentOutOfRangeException("width/height");
+            Edges = edges & ScreenEdges.All;
+            if (total < 4) throw new ArgumentOutOfRangeException(nameof(total));
+            Total = Edges == ScreenEdges.None ? 0 : total;
             BandFrac = bandFrac;
 
             BandX = Math.Max(1, (int)Math.Round(width * bandFrac));
@@ -87,32 +108,27 @@ namespace TizenAmbilight
             if (BandX > width) BandX = width;
             if (BandY > height) BandY = height;
 
-            // ---- distribute the zone total over the four edges ----
-            // Proportional to edge length: left/right get height-ish weight, top/bottom width-ish.
-            double perimeter = 2.0 * width + 2.0 * height;
-            int left = (int)Math.Round(total * (height / perimeter));
-            int top = (int)Math.Round(total * (width / perimeter));
-            int right = left;
-            int bottom = top;
-
-            // guarantee at least one zone per edge on a degenerate strip
-            left = Math.Max(1, left);
-            top = Math.Max(1, top);
-            right = Math.Max(1, right);
-            bottom = Math.Max(1, bottom);
-
-            // push any rounding remainder onto the bottom edge
-            int[] counts = { left, top, right, bottom };
-            const int BOTTOM = 3;
-            int sum = left + top + right + bottom;
-            while (sum < total) { counts[BOTTOM]++; sum++; }
-            while (sum > total && counts[BOTTOM] > 1) { counts[BOTTOM]--; sum--; }
-            // extreme fallback: trim from whichever edge is largest
-            while (sum > total)
+            // Keep the established all-edge rounding exactly; partial layouts redistribute only
+            // across enabled edges, with at least one zone on each enabled edge.
+            int[] counts = new int[4];                     // left, top, right, bottom
+            int[] weights = { height, width, height, width };
+            ScreenEdges[] flags = { ScreenEdges.Left, ScreenEdges.Top, ScreenEdges.Right, ScreenEdges.Bottom };
+            int perimeter = 0, remainderEdge = -1;
+            for (int i = 0; i < 4; i++)
+                if ((Edges & flags[i]) != 0) { perimeter += weights[i]; remainderEdge = i; }
+            int sum = 0;
+            for (int i = 0; i < 4; i++)
+            {
+                if ((Edges & flags[i]) == 0) continue;
+                counts[i] = Math.Max(1, (int)Math.Round(total * (weights[i] / (double)perimeter)));
+                sum += counts[i];
+            }
+            while (sum < Total) { counts[remainderEdge]++; sum++; }
+            while (sum > Total && counts[remainderEdge] > 1) { counts[remainderEdge]--; sum--; }
+            while (sum > Total)
             {
                 int big = 0;
                 for (int i = 1; i < 4; i++) if (counts[i] > counts[big]) big = i;
-                if (counts[big] <= 1) break;
                 counts[big]--; sum--;
             }
 
@@ -158,6 +174,9 @@ namespace TizenAmbilight
             }
 
             Zones = zones;
+            Previous = new int[Total]; Next = new int[Total];
+            _component = new int[Total]; _position = new int[Total];
+            BuildTopology();
 
             // Defensive clamp. For a frame whose dimension is smaller than the number of zones
             // along that edge, the rounding above can produce a zero-width zone pushed one pixel
@@ -176,9 +195,114 @@ namespace TizenAmbilight
             }
         }
 
+        /// <summary>Missing edges break the halo into open runs. A missing neighbour points at
+        /// the zone itself, so blur and measurement interpolation cannot bridge an unlit gap.</summary>
+        void BuildTopology()
+        {
+            int n = Total;
+            if (n == 0) return;
+            string[] order = { "top", "right", "bottom", "left" };
+            int start = 0;
+            for (int i = 0; i < n; i++)
+            {
+                int q = (i + 1) % n;
+                int edge = Array.IndexOf(order, Zones[i].Edge);
+                bool joined = Zones[i].Edge == Zones[q].Edge
+                    ? q != 0 : order[(edge + 1) % 4] == Zones[q].Edge;
+                Next[i] = joined ? q : i;
+                Previous[q] = joined ? i : q;
+                if (!joined) start = q;
+            }
+            int visited = 0;
+            while (visited < n)
+            {
+                var run = new List<int>();
+                int z = start;
+                while (true)
+                {
+                    _component[z] = _runs.Count; _position[z] = run.Count;
+                    run.Add(z); visited++;
+                    if (Next[z] == z || Next[z] == start) break;
+                    z = Next[z];
+                }
+                _runs.Add(run.ToArray());
+                start = (z + 1) % n;
+            }
+        }
+
+        /// <summary>Retain the original ring sampling for full strips. For open runs include both
+        /// endpoints, so a bottom-only strip does not extrapolate its last LEDs from a distant spot.</summary>
+        public int[] SampleZones(int requested)
+        {
+            int count = Math.Min(Total, Math.Max(4, requested));
+            if (count == 0) return new int[0];
+            var samples = new List<int>();
+            if (Edges == ScreenEdges.All)
+            {
+                for (int k = 0; k < count; k++) samples.Add((int)Math.Round(k * (double)Total / count));
+            }
+            else
+            {
+                int[] counts = new int[_runs.Count];
+                int assigned = 0;
+                for (int i = 0; i < counts.Length; i++) { counts[i] = Math.Min(2, _runs[i].Length); assigned += counts[i]; }
+                while (assigned < count)
+                {
+                    int best = -1;
+                    double widest = -1;
+                    for (int i = 0; i < counts.Length; i++)
+                    {
+                        if (counts[i] >= _runs[i].Length) continue;
+                        double gap = (_runs[i].Length - 1.0) / Math.Max(1, counts[i] - 1);
+                        if (gap > widest) { best = i; widest = gap; }
+                    }
+                    counts[best]++; assigned++;
+                }
+                for (int i = 0; i < counts.Length; i++)
+                    for (int k = 0; k < counts[i]; k++)
+                        samples.Add(_runs[i][counts[i] == 1 ? 0 : (int)Math.Round(k * (_runs[i].Length - 1.0) / (counts[i] - 1))]);
+                samples.Sort();
+            }
+            return samples.ToArray();
+        }
+
+        /// <summary>Interpolate raw 10-bit PPI measurements within each connected run. An endpoint
+        /// holds its nearest sample; a run without any fresh sample stays black during warm-up.</summary>
+        public void InterpolateSamples(int[] zones, int[] rgb10, int count, byte[] r, byte[] g, byte[] b)
+        {
+            bool closed = Edges == ScreenEdges.All;
+            for (int z = 0; z < Total; z++)
+            {
+                int before = -1, after = -1, db = int.MaxValue, da = int.MaxValue;
+                for (int k = 0; k < count; k++)
+                {
+                    int s = zones[k];
+                    if (_component[s] != _component[z]) continue;
+                    int delta = _position[z] - _position[s];
+                    int back = closed ? (delta + Total) % Total : delta;
+                    int forward = closed ? (-delta + Total) % Total : -delta;
+                    if (back >= 0 && back < db) { before = k; db = back; }
+                    if (forward >= 0 && forward < da) { after = k; da = forward; }
+                }
+                if (before < 0) before = after;
+                if (after < 0) after = before;
+                if (before < 0) { r[z] = g[z] = b[z] = 0; continue; }
+                double t = before == after ? 0 : (double)db / ((double)db + da);
+                r[z] = To8(rgb10[before * 3] + (rgb10[after * 3] - rgb10[before * 3]) * t);
+                g[z] = To8(rgb10[before * 3 + 1] + (rgb10[after * 3 + 1] - rgb10[before * 3 + 1]) * t);
+                b[z] = To8(rgb10[before * 3 + 2] + (rgb10[after * 3 + 2] - rgb10[before * 3 + 2]) * t);
+            }
+        }
+
+        static byte To8(double value)
+        {
+            int v = (int)((value + 0.5) / 4.0);
+            return (byte)Math.Max(0, Math.Min(255, v));
+        }
+
         public string Describe()
         {
-            return Total + " zones clockwise from top-left: top " + TopCount + " (L->R), right " +
+            return Total + " zones in clockwise edge order (" + Edges + "): top " + TopCount + " (L->R), right " +
                    RightCount + " (T->B), bottom " + BottomCount + " (R->L), left " + LeftCount +
                    " (B->T); border band " + BandX + "x" + BandY + " px (" +
                    (BandFrac * 100.0).ToString("0.#") + "% of each dimension, inward from the edge)";
@@ -419,14 +543,14 @@ namespace TizenAmbilight
 
         /// <summary>Blend each zone with its two NEIGHBOURS ALONG THE PERIMETER.
         ///
-        /// The zones are already in ring order (top L->R, right, bottom R->L, left), so a ring blur
-        /// needs no adjacency table - index +/- 1 wraps correctly. This softens the hard boundaries
+        /// Without a layout this preserves the original circular blur. A supplied layout uses
+        /// physical neighbours and repeats an endpoint at each missing edge. This softens the hard boundaries
         /// between adjacent zones, which is what makes the glow read as one continuous halo rather
         /// than as 73 discrete patches. amount 0 = off, ~0.25 = gentle, 0.5 = very soft.
         /// </summary>
         static byte[] _sr, _sg, _sb;    // scratch for SpatialRing; render thread only
 
-        public static void SpatialRing(ZoneColors c, double amount)
+        public static void SpatialRing(ZoneColors c, double amount, ZoneLayout layout = null)
         {
             if (c == null || c.Count < 3 || amount <= 0.0) return;
             if (amount > 1.0) amount = 1.0;
@@ -441,7 +565,8 @@ namespace TizenAmbilight
             double k = 1.0 - amount, m = amount * 0.5;   // loop-invariant: was recomputed per zone
             for (int i = 0; i < n; i++)
             {
-                int p = (i - 1 + n) % n, q = (i + 1) % n;
+                int p = layout == null ? (i - 1 + n) % n : layout.Previous[i];
+                int q = layout == null ? (i + 1) % n : layout.Next[i];
                 r[i] = (byte)(c.R[i] * k + (c.R[p] + c.R[q]) * m + 0.5);
                 g[i] = (byte)(c.G[i] * k + (c.G[p] + c.G[q]) * m + 0.5);
                 b[i] = (byte)(c.B[i] * k + (c.B[p] + c.B[q]) * m + 0.5);

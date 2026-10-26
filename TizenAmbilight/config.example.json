@@ -5,6 +5,10 @@
   "mapOffset": 0,
   "mapReverse": 0,
   "ppiZones": 24,
+  "edgeTop": true,
+  "edgeRight": true,
+  "edgeBottom": true,
+  "edgeLeft": true,
   "controlUrl": "",
   "probeEndpoint": ""
 }

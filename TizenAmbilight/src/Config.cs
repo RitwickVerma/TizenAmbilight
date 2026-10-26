@@ -17,6 +17,7 @@ namespace TizenAmbilight
         {
             public bool OutputEnabled;          // master switch for UDP output; gates every send
             public int ZoneCount;
+            public ScreenEdges Edges;
             public double Alpha;
             // ---- output brightness shaping ----
             public double Gain;
@@ -86,6 +87,10 @@ namespace TizenAmbilight
                     { "config_source", ConfigFile.Source },
                     { "output_enabled", OutputEnabled },
                     { "zone_count", (long)ZoneCount },
+                    { "edge_top", (Edges & ScreenEdges.Top) != 0 },
+                    { "edge_right", (Edges & ScreenEdges.Right) != 0 },
+                    { "edge_bottom", (Edges & ScreenEdges.Bottom) != 0 },
+                    { "edge_left", (Edges & ScreenEdges.Left) != 0 },
                     { "led_count", (long)LedCount },
                     { "smoothing_alpha", Alpha },
                     { "border_band_frac", BandFrac },
@@ -191,6 +196,12 @@ namespace TizenAmbilight
             else if (leds <= 0) leds = zones;
             c.ZoneCount = Math.Max(4, Math.Min(WledOutput.MaxDrgbLeds, zones));
             c.LedCount = Math.Max(4, Math.Min(WledOutput.MaxDrgbLeds, leds));
+
+            c.Edges = ScreenEdges.None;
+            if (PrefBool("edgeTop", true)) c.Edges |= ScreenEdges.Top;
+            if (PrefBool("edgeRight", true)) c.Edges |= ScreenEdges.Right;
+            if (PrefBool("edgeBottom", true)) c.Edges |= ScreenEdges.Bottom;
+            if (PrefBool("edgeLeft", true)) c.Edges |= ScreenEdges.Left;
 
             c.Alpha = PrefDouble("alpha", 0.25);
             if (c.Alpha <= 0.0) c.Alpha = 1.0;

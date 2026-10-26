@@ -153,6 +153,12 @@ Two details matter more than they look:
   1.4% mean error against an every-pixel reference. Zone extraction, not capture, is the frame-rate
   ceiling.
 
+Partial strips can disable individual edges with `edgeTop`, `edgeRight`, `edgeBottom`
+and `edgeLeft`. Zones are redistributed across enabled edges. The same geometry drives
+the video-plane, file and PPI backends. Missing edges break the spatial blur and PPI
+interpolation into open runs; adjacent installed edges remain connected at their corner.
+See [edge configuration](configuration.md#choosing-the-installed-edges).
+
 Mapping is **1:1**: zone *i* drives one LED, rotated by `mapOffset` and optionally reversed. LEDs
 beyond the zone count are explicitly written `(0,0,0)` every frame. Spreading zones proportionally
 across a longer strip accumulates drift and breaks the corner alignment. Unwritten LEDs keep showing

@@ -196,6 +196,11 @@ after a cold boot, see [Troubleshooting](#troubleshooting).
 
 ## Configuration
 
+For a strip on only some edges (including bottom only), configure `edgeTop`,
+`edgeRight`, `edgeBottom` and `edgeLeft` in `config.json`. All default to enabled.
+See [choosing the installed edges](docs/configuration.md#choosing-the-installed-edges).
+
+
 Settings live in `config.json`, which is bundled into the app when it is built or installed. The
 essentials:
 
