@@ -6,6 +6,14 @@ identifier.
 
 ## [Unreleased]
 
+### Added
+- Build v7: independent `edgeTop`, `edgeRight`, `edgeBottom` and `edgeLeft` settings
+  for partial LED strips. Enabled edges share all zones; all disabled holds the strip
+  black. The plane, file and PPI paths share the layout. Spatial blur and PPI
+  interpolation respect missing edges, while the default four-edge layout is unchanged.
+- Apps2Samsung catalog template: optional 0/1 fields for each screen edge, with all
+  edges enabled when omitted; the catalog checker covers all 16 combinations.
+
 ### Fixed
 - Docs: signing needs a **partner**-level certificate. A public certificate installs and starts the app,
   but Tizen blocks the capture libraries (`Operation not permitted`). Reported in #1; the docs

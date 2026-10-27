@@ -74,7 +74,7 @@ namespace TizenAmbilight
         public const string AppId = "dev.ritwickverma.TizenAmbilight";
         // Bump this whenever behaviour changes. It sat at "v3" through the HDR decode, the BT.2020->709
         // gamut map and the adaptive tone curve, which made build identification useless in telemetry.
-        public const string Version = "v6";
+        public const string Version = "v7";
 
         // ---- failure handling ----
         const int FailSleepMs = 200;                     // pause after a frame-less iteration
@@ -180,7 +180,7 @@ namespace TizenAmbilight
               " saturation=" + cfg.Saturation +
               " white=" + cfg.WhiteR + "/" + cfg.WhiteG + "/" + cfg.WhiteB);
             L("outputEnabled=" + cfg.OutputEnabled + ", zones=" + cfg.ZoneCount +
-              ", alpha=" + cfg.Alpha + ", bandFrac=" + cfg.BandFrac);
+              ", edges=" + cfg.Edges + ", alpha=" + cfg.Alpha + ", bandFrac=" + cfg.BandFrac);
             L("main-loop capture request " + cfg.RequestWidth + "x" + cfg.RequestHeight +
               " compress_type=" + cfg.CompressType +
               (cfg.CompressType == CaptureApi.CompressJpeg ? " (JPEG q" + cfg.JpegQuality + ")" : " (PNG)"));
@@ -251,7 +251,7 @@ namespace TizenAmbilight
             // even when the video plane was selected, so a firmware without libdisplay-capture-api
             // would idle forever although the default backend was ready.
             string backendErr = usePlane ? vErr : initErr;
-            if (backendErr != null)
+            if (backendErr != null && cfg.Edges != ScreenEdges.None)
             {
                 Post(cfg, BuildReport(cfg, selfTest, backendErr, captureDir, discovery, "no_library", stats));
                 L("cannot run the main loop without the capture library; idling and retrying every 60 s");
@@ -407,6 +407,16 @@ namespace TizenAmbilight
                         }
                     }
 
+                    if (cfg.Edges == ScreenEdges.None)
+                    {
+                        PpiCapture.Park();
+                        st.LastStatus = "all screen edges disabled";
+                        HoldBlackout(cfg, "all screen edges disabled: holding black");
+                        MaybePost(cfg, captureDir, layout, smoothed, st);
+                        Thread.Sleep(250);
+                        continue;
+                    }
+
                     var fsw = Stopwatch.StartNew();
 
                     // ---- 0. VIDEO-PLANE backend: in memory, no file, no encoder, no decoder ----
@@ -525,7 +535,7 @@ namespace TizenAmbilight
                                 // Same zone layout (and therefore the same zone order and LED mapping) the
                                 // plane uses: built at the plane's aspect, so a plane frame arriving later
                                 // finds LastDims unchanged and does not reset the smoothing state.
-                                layout = new ZoneLayout(VideoPlaneCapture.PlaneW, VideoPlaneCapture.PlaneH, cfg.ZoneCount, cfg.BandFrac);
+                                layout = new ZoneLayout(VideoPlaneCapture.PlaneW, VideoPlaneCapture.PlaneH, cfg.ZoneCount, cfg.BandFrac, cfg.Edges);
                                 smoothed = null;
                                 st.LastDims = VideoPlaneCapture.PlaneW + "x" + VideoPlaneCapture.PlaneH;
                                 L("zone layout (ppi): " + layout.Describe());
@@ -621,7 +631,7 @@ namespace TizenAmbilight
                         // per pixel.
                         if (layout == null || layout.Total != cfg.ZoneCount || st.LastDims != dims)
                         {
-                            layout = new ZoneLayout(vr.W, vr.H, cfg.ZoneCount, cfg.BandFrac);
+                            layout = new ZoneLayout(vr.W, vr.H, cfg.ZoneCount, cfg.BandFrac, cfg.Edges);
                             smoothed = null;
                             st.LastDims = dims;
                             L("zone layout: " + layout.Describe());
@@ -806,7 +816,7 @@ namespace TizenAmbilight
                     dims = img.Width + "x" + img.Height;
                     if (layout == null || layout.Total != cfg.ZoneCount || st.LastDims != dims)
                     {
-                        layout = new ZoneLayout(img.Width, img.Height, cfg.ZoneCount, cfg.BandFrac);
+                        layout = new ZoneLayout(img.Width, img.Height, cfg.ZoneCount, cfg.BandFrac, cfg.Edges);
                         smoothed = null;
                         st.LastDims = dims;
                         L("zone layout: " + layout.Describe());
@@ -855,8 +865,8 @@ namespace TizenAmbilight
                         shaped = new ZoneColors(smoothed.Count);
                     shaped.CopyFrom(smoothed);
                     // blend along the perimeter so adjacent zones merge into one halo instead of
-                    // reading as discrete patches (zone order is already the ring, so it wraps)
-                    Colors.SpatialRing(shaped, cfg.Spatial);
+                    // reading as discrete patches; missing edges stop the blend at open endpoints
+                    Colors.SpatialRing(shaped, cfg.Spatial, layout);
                     ssw.Stop();
                     double sMs = ssw.Elapsed.TotalMilliseconds;
 

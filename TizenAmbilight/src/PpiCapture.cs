@@ -108,9 +108,9 @@ namespace TizenAmbilight
 
         static string Fail(string e) { InitError = e; return e; }
 
-        public static string Init(int zoneCount, double bandFrac)
+        public static string Init(int zoneCount, double bandFrac, ScreenEdges edges = ScreenEdges.All)
         {
-            if (_cond != null && _geomReady && _zones == zoneCount) return null;
+            if (_cond != null && _geomReady && _zones == zoneCount && _geomLayout.Edges == edges) return null;
             try
             {
                 if (_cond == null)
@@ -161,7 +161,7 @@ namespace TizenAmbilight
                 // Zone centres come from the SAME ZoneLayout class the video plane uses (clockwise from the
                 // top-left), at the plane's aspect, scaled into the panel's measure space - so zone i here is
                 // zone i downstream, and the LED mapping needs no special case.
-                var layout = new ZoneLayout(VideoPlaneCapture.PlaneW, VideoPlaneCapture.PlaneH, zoneCount, bandFrac);
+                var layout = new ZoneLayout(VideoPlaneCapture.PlaneW, VideoPlaneCapture.PlaneH, zoneCount, bandFrac, edges);
                 int n = layout.Zones.Length;
                 var px = new int[n]; var py = new int[n];
                 var fx2 = new double[n]; var fy2 = new double[n];
@@ -328,10 +328,10 @@ namespace TizenAmbilight
                     _cur = 0;
                 }
                 _pz = pz;
+                int[] sampleZones = _geomLayout.SampleZones(pz);
                 for (int k = 0; k < pz; k++)
                 {
-                    int z = (int)Math.Round(k * (double)_zones / pz);
-                    if (z >= _zones) z = _zones - 1;
+                    int z = sampleZones[k];
                     _mz[k] = z; _mpx[k] = _px[z]; _mpy[k] = _py[z];
                 }
                 _rebuild = false;
@@ -375,13 +375,13 @@ namespace TizenAmbilight
             _cur = (i0 + armed) % pz;
         }
 
-        /// <summary>Latest measurements interpolated linearly round the ring onto every zone (8-bit =
+        /// <summary>Latest measurements interpolated within connected edges onto every zone (8-bit =
         /// 10-bit >> 2). Returns the number of measured positions that have data, 0 if none yet. Render
         /// thread only (it reuses scratch buffers, so a steady-state call allocates nothing).</summary>
         public static int Snapshot(byte[] r8, byte[] g8, byte[] b8)
         {
             int n = 0;
-            int zc;
+            ZoneLayout layout;
             lock (_lock)
             {
                 if (_mz == null) return 0;
@@ -394,28 +394,10 @@ namespace TizenAmbilight
                     _snapV[n * 3] = _val[k * 3]; _snapV[n * 3 + 1] = _val[k * 3 + 1]; _snapV[n * 3 + 2] = _val[k * 3 + 2];
                     n++;
                 }
-                zc = Math.Min(_zones, r8.Length);
+                layout = _geomLayout;
             }
             if (n == 0) return 0;
-            int[] zs = _snapZ, vs = _snapV;
-            for (int m = 0; m < n; m++)
-            {
-                bool last = (m + 1 == n);
-                int a = zs[m];
-                int b = last ? zs[0] + zc : zs[m + 1];                   // wrap to the first measured zone
-                int bm = last ? 0 : m + 1;
-                int span = b - a;
-                if (span <= 0) span = zc;                               // single measured position: flat ring
-                int end = (n == 1) ? a + zc : b;
-                for (int z = a; z < end; z++)
-                {
-                    double t = (double)(z - a) / span;
-                    int zi = z % zc;
-                    r8[zi] = To8(vs[m * 3] + (vs[bm * 3] - vs[m * 3]) * t);
-                    g8[zi] = To8(vs[m * 3 + 1] + (vs[bm * 3 + 1] - vs[m * 3 + 1]) * t);
-                    b8[zi] = To8(vs[m * 3 + 2] + (vs[bm * 3 + 2] - vs[m * 3 + 2]) * t);
-                }
-            }
+            layout.InterpolateSamples(_snapZ, _snapV, n, r8, g8, b8);
             return n;
         }
 

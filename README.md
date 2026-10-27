@@ -151,6 +151,7 @@ TizenAmbilight is listed in the Apps2Samsung
 | Where the strip's first LED sits, counted clockwise from the screen's top-left corner | `0` |
 | Strip runs counter-clockwise? | `0` |
 | *(optional)* Spots measured under DRM content (`ppiZones`, 4-73) | `24` |
+| *(optional, with the updated catalog entry)* Top / right / bottom / left edge enabled | `1` = enabled, `0` = disabled; blank = enabled |
 
 4. Power-cycle the TV (see [Starting it](#starting-it)).
 
@@ -195,6 +196,11 @@ other sideloaded projects report that `on-boot` is ignored on their firmware. If
 after a cold boot, see [Troubleshooting](#troubleshooting).
 
 ## Configuration
+
+For a strip on only some edges (including bottom only), configure `edgeTop`,
+`edgeRight`, `edgeBottom` and `edgeLeft` in `config.json`. All default to enabled.
+See [choosing the installed edges](docs/configuration.md#choosing-the-installed-edges).
+
 
 Settings live in `config.json`, which is bundled into the app when it is built or installed. The
 essentials:
