@@ -82,6 +82,20 @@ open run in its measurement positions, while preserving the configured spot coun
 The four-edge layout, sampling and LED mapping remain unchanged by default.
 With `test=1`, only installed edges appear in their usual test colours (bottom = blue).
 
+### Apps2Samsung install form
+
+The catalog entry in `packaging/apps2samsung/` exposes each edge as an optional
+number field: `1` enables it, `0` disables it, and leaving it blank keeps it enabled.
+For bottom only, enter top = `0`, right = `0`, bottom = `1`, left = `0`.
+The installer writes these values into `res/config.json` before signing the TPK.
+
+The official Apps2Samsung catalog is maintained separately in
+[Apps2Samsung/tizen-community-packages](https://github.com/Apps2Samsung/tizen-community-packages).
+Its `packages/RitwickVerma__TizenAmbilight.json` must receive the same fields after
+a release containing edge support is available. Editing the copy in this repository
+alone does not update the public install form. Installing a standalone local TPK
+also does not automatically load the form from this repository.
+
 ### All settings
 
 | key | default | meaning |
