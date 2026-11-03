@@ -74,7 +74,14 @@ namespace TizenAmbilight
         public const string AppId = "dev.ritwickverma.TizenAmbilight";
         // Bump this whenever behaviour changes. It sat at "v3" through the HDR decode, the BT.2020->709
         // gamut map and the adaptive tone curve, which made build identification useless in telemetry.
-        public const string Version = "v6";
+        public const string Version = "v7";
+
+        // Web dashboard: latest stats snapshot for the /api/status endpoint.
+        static volatile Stats _lastStats;
+        // Web dashboard: latest zone colors + layout for the /api/zones preview.
+        static volatile ZoneColors _lastZoneColors;
+        static volatile ZoneLayout _lastLayout;
+        static volatile Config _lastConfig;
 
         // ---- failure handling ----
         const int FailSleepMs = 200;                     // pause after a frame-less iteration
@@ -246,6 +253,7 @@ namespace TizenAmbilight
             discovery["chosen_capture_dir"] = captureDir;
 
             var stats = new Stats();
+            _lastStats = stats;
 
             // Gate on the SELECTED backend only. This used to test the legacy file backend's library
             // even when the video plane was selected, so a firmware without libdisplay-capture-api
@@ -277,6 +285,7 @@ namespace TizenAmbilight
         {
             ZoneLayout layout = null;
             ZoneColors smoothed = null;
+            _lastConfig = cfg;
 
             // ---- power-state gate state: cache + on->off transition detection ----
             bool powerIsOff = false;    // last decision: the panel is in standby, skip captures
@@ -293,6 +302,16 @@ namespace TizenAmbilight
             var postThread = new Thread(() => IoPoster(cfg));
             postThread.IsBackground = true;
             postThread.Start();
+
+            // Web dashboard: serves config + status on a local port.
+            int webPort = PrefInt("webPort", 8794);
+            string webBind = PrefString("webBind", "127.0.0.1");
+            if (webPort > 0)
+            {
+                var webThread = new Thread(() => WebServerThread(webPort, webBind));
+                webThread.IsBackground = true;
+                webThread.Start();
+            }
 
             // ---- letterbox / punch state, persisted across loop iterations ----
             int barTop = 0, barBottom = -1;
@@ -892,28 +911,32 @@ namespace TizenAmbilight
                     // ---- AMBIENT FLOOR: never let the room go fully dark ----
                     if (cfg.Floor > 0) Colors.ApplyFloor(shaped, cfg.Floor);
 
+                    // Compute toSend (test pattern or real) for BOTH preview and output.
+                    ZoneColors toSend = shaped;
+                    if (cfg.TestPattern && layout != null)
+                    {
+                        // 4-edge colour test, built in OUR zone order so the mapping is visible:
+                        // top=red, right=green, bottom=blue, left=yellow
+                        var tp = new ZoneColors(layout.Total);
+                        int k0 = 0;
+                        for (int e = 0; e < 4; e++)
+                        {
+                            int cnt = (e == 0) ? layout.TopCount : (e == 1) ? layout.RightCount
+                                    : (e == 2) ? layout.BottomCount : layout.LeftCount;
+                            byte r = (byte)(e == 0 ? 255 : (e == 2 ? 0 : (e == 3 ? 255 : 0)));
+                            byte g = (byte)(e == 1 ? 255 : (e == 3 ? 255 : 0));
+                            byte b = (byte)(e == 2 ? 255 : 0);
+                            for (int q = 0; q < cnt && k0 < layout.Total; q++, k0++)
+                            { tp.R[k0] = r; tp.G[k0] = g; tp.B[k0] = b; }
+                        }
+                        toSend = tp;
+                    }
+                    _lastZoneColors = toSend;
+                    _lastLayout = layout;
+
                     // ---- 5. output (only when enabled AND a strip is configured) ----
                     if (CanSend(cfg))
                     {
-                        ZoneColors toSend = shaped;
-                        if (cfg.TestPattern && layout != null)
-                        {
-                            // 4-edge colour test, built in OUR zone order so the mapping is visible:
-                            // top=red, right=green, bottom=blue, left=yellow
-                            var tp = new ZoneColors(layout.Total);
-                            int k0 = 0;
-                            for (int e = 0; e < 4; e++)
-                            {
-                                int cnt = (e == 0) ? layout.TopCount : (e == 1) ? layout.RightCount
-                                        : (e == 2) ? layout.BottomCount : layout.LeftCount;
-                                byte r = (byte)(e == 0 ? 255 : (e == 2 ? 0 : (e == 3 ? 255 : 0)));
-                                byte g = (byte)(e == 1 ? 255 : (e == 3 ? 255 : 0));
-                                byte b = (byte)(e == 2 ? 255 : 0);
-                                for (int q = 0; q < cnt && k0 < layout.Total; q++, k0++)
-                                { tp.R[k0] = r; tp.G[k0] = g; tp.B[k0] = b; }
-                            }
-                            toSend = tp;
-                        }
                         // WQUANTISED so the WLED LUT - cached on the exact gamma - is rebuilt only when
                         // the value actually moves rather than on every frame of the glide.
                         double effGamma = cfg.AdaptiveGamma

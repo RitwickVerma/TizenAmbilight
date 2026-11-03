@@ -6,5 +6,7 @@
   "mapReverse": 0,
   "ppiZones": 24,
   "controlUrl": "",
-  "probeEndpoint": ""
+  "probeEndpoint": "",
+  "webPort": 8794,
+  "webBind": "127.0.0.1"
 }
