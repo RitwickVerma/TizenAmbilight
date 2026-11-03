@@ -22,6 +22,8 @@ phone's HDR recording to standard dynamic range, audio removed).*
   handful of sample points.
 * **HDR-aware.** It decodes PQ (HDR10) properly, maps BT.2020 colours into what LEDs can show, and adapts
   the tone curve to the scene.
+* **Built-in web dashboard.** Tune colours, mapping and smoothing from any browser with live LED strip
+  preview and instant feedback. See [Web dashboard](#web-dashboard).
 * **Keeps going under DRM, coarsely.** Streaming apps withhold the video plane. The app then switches to
   the TV's own built-in colour measurement (the one Samsung's Hue Sync support uses): a handful of spot
   colours instead of the whole picture, and far slower. See [DRM content](#drm-content).
@@ -40,6 +42,7 @@ phone's HDR recording to standard dynamic range, audio removed).*
 - [What you need](#what-you-need)
 - [Install](#install)
 - [Configuration](#configuration)
+- [Web dashboard](#web-dashboard)
 - [Updating safely](#updating-safely)
 - [Troubleshooting](#troubleshooting)
 - [FAQ](#faq)
@@ -204,7 +207,9 @@ essentials:
   "wledIp": "192.168.1.50",
   "ledCount": 96,
   "mapOffset": 0,
-  "mapReverse": 0
+  "mapReverse": 0,
+  "webPort": 8794,
+  "webBind": "0.0.0.0"
 }
 ```
 
@@ -213,6 +218,47 @@ Everything else (brightness curve, smoothing, HDR handling, bar detection, the D
 [docs/configuration.md](docs/configuration.md) lists every setting. It also covers the optional
 **live control channel**, which lets you tune settings and line the strip up while you watch, without
 reinstalling.
+
+## Web dashboard
+
+The app includes a built-in web dashboard for tuning and monitoring, accessible from any browser on
+your network. Set `webPort` (default `8794`) and `webBind` (default `127.0.0.1`, use `0.0.0.0` for
+network access) in `config.json` to enable it.
+
+```json
+{
+  "webPort": 8794,
+  "webBind": "0.0.0.0"
+}
+```
+
+Once configured, open `http://<tv-ip>:8794` in a browser.
+
+### Features
+
+* **Live LED strip preview** — real-time canvas showing every zone's colour around the TV perimeter,
+  plus a linear strip of all zones in order with the start-position marker and mapping direction
+  arrows.
+* **Colour controls** — gamma, gain, saturation, black crush with instant feedback.
+* **Motion controls** — temporal smoothing (alpha), spatial blend, target FPS, adaptive gamma toggle.
+* **Mapping controls** — mapOffset and mapReverse with visual direction indicator and test pattern
+  (top=red, right=green, bottom=blue, left=yellow) for calibration.
+* **Tuning tools** — pause/resume, zone hex dump, capture backend switch (auto / PPI locked),
+  presets (cinema / gaming / reset), and a free-text token input for advanced control commands.
+* **Setup panel** — WLED IP, LED count, band fraction, zone sample stride.
+* **Status panel** — live FPS, capture counters, backend, power state.
+* **Persistent config** — slider changes are saved to `config.json` and applied live.
+
+### API endpoints
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/` | GET | Web dashboard HTML |
+| `/api/config` | GET | Current config as JSON |
+| `/api/config` | POST | Save config values (JSON body) and apply live |
+| `/api/status` | GET | Runtime stats (fps, frames, backend, power) |
+| `/api/zones` | GET | Current zone colours, layout, and mapping info |
+| `/api/control` | POST | Send live control tokens (text body) |
 
 ## Updating safely
 

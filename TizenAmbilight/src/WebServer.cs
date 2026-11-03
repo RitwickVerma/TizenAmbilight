@@ -61,80 +61,80 @@ namespace TizenAmbilight
 </head>
 <body>
 <h1>TizenAmbilight</h1>
-<div class=""sub"">Dashboard embutido · <a href=""#"" onclick=""loadStatus();return false"" style=""color:#7fd1ff"">status</a></div>
+<div class=""sub"">Embedded dashboard · <a href=""#"" onclick=""loadStatus();return false"" style=""color:#7fd1ff"">status</a></div>
 <div class=""grid"">
   <div class=""card"">
     <h2>Setup</h2>
-    <label><span title=""IP do WLED (ex: 192.168.3.153)"">WLED IP</span><input type=""text"" id=""wledIp"" style=""flex:1.2;background:#222831;border:1px solid #333c48;border-radius:7px;padding:6px 10px;color:#e6e9ee;font-size:13px"" placeholder=""192.168.3.153""></label>
-    <label><span title=""Total de LEDs na fita"">LEDs</span><input type=""range"" id=""ledCount"" min=""4"" max=""490"" step=""1"" value=""73""><b class=""val"" id=""ledCount_v"">73</b></label>
-    <label><span title=""Largura da faixa de captura (% da borda)"">bandFrac</span><input type=""range"" id=""bandFrac"" min=""0.02"" max=""0.5"" step=""0.01"" value=""0.08""><b class=""val"" id=""bandFrac_v"">0.08</b></label>
-    <label><span title=""Zonas de captura por frame (menos = mais rápido)"">zoneSample</span><input type=""range"" id=""zoneSample"" min=""1"" max=""8"" step=""1"" value=""3""><b class=""val"" id=""zoneSample_v"">3</b></label>
+    <label><span title=""WLED IP address (e.g. 192.168.3.153)"">WLED IP</span><input type=""text"" id=""wledIp"" style=""flex:1.2;background:#222831;border:1px solid #333c48;border-radius:7px;padding:6px 10px;color:#e6e9ee;font-size:13px"" placeholder=""192.168.3.153""></label>
+    <label><span title=""Total LEDs on the strip"">LEDs</span><input type=""range"" id=""ledCount"" min=""4"" max=""490"" step=""1"" value=""73""><b class=""val"" id=""ledCount_v"">73</b></label>
+    <label><span title=""Capture band width (% of border)"">bandFrac</span><input type=""range"" id=""bandFrac"" min=""0.02"" max=""0.5"" step=""0.01"" value=""0.08""><b class=""val"" id=""bandFrac_v"">0.08</b></label>
+    <label><span title=""Zone sample stride (lower = faster)"">zoneSample</span><input type=""range"" id=""zoneSample"" min=""1"" max=""8"" step=""1"" value=""3""><b class=""val"" id=""zoneSample_v"">3</b></label>
     <div class=""row"">
-      <button onclick=""saveSetup()"">Aplicar setup</button>
-      <button class=""alt"" onclick=""restartApp()"">Reiniciar app</button>
+      <button onclick=""saveSetup()"">Apply setup</button>
+      <button class=""alt"" onclick=""restartApp()"">Restart app</button>
     </div>
   </div>
   <div class=""card"">
-    <h2>Cor</h2>
-    <label><span title=""Curva de luminosidade. Menor = mais claro nas sombras."">Gamma</span><input type=""range"" id=""gamma"" min=""1"" max=""4"" step=""0.05"" value=""1.5""><b class=""val"" id=""gamma_v"">1.50</b></label>
-    <label><span title=""Multiplica brilho geral. Alto pode lavar cores."">Gain</span><input type=""range"" id=""gain"" min=""0.1"" max=""8"" step=""0.05"" value=""1""><b class=""val"" id=""gain_v"">1.00</b></label>
-    <label><span title=""Intensidade das cores. 1.0 = neutro"">Sat</span><input type=""range"" id=""saturation"" min=""0"" max=""4"" step=""0.05"" value=""1""><b class=""val"" id=""saturation_v"">1.00</b></label>
-    <label><span title=""Corta pretos profundos. Remove ruído em cenas escuras."">Black</span><input type=""range"" id=""black"" min=""0"" max=""200"" step=""1"" value=""12""><b class=""val"" id=""black_v"">12</b></label>
+    <h2>Color</h2>
+    <label><span title=""Luminance curve. Lower = brighter shadows."">Gamma</span><input type=""range"" id=""gamma"" min=""1"" max=""4"" step=""0.05"" value=""1.5""><b class=""val"" id=""gamma_v"">1.50</b></label>
+    <label><span title=""Overall brightness multiplier. High can wash out colors."">Gain</span><input type=""range"" id=""gain"" min=""0.1"" max=""8"" step=""0.05"" value=""1""><b class=""val"" id=""gain_v"">1.00</b></label>
+    <label><span title=""Color intensity. 1.0 = neutral"">Sat</span><input type=""range"" id=""saturation"" min=""0"" max=""4"" step=""0.05"" value=""1""><b class=""val"" id=""saturation_v"">1.00</b></label>
+    <label><span title=""Crush deep blacks. Removes haze in dark scenes."">Black</span><input type=""range"" id=""black"" min=""0"" max=""200"" step=""1"" value=""12""><b class=""val"" id=""black_v"">12</b></label>
   </div>
   <div class=""card"">
-    <h2>Movimento</h2>
-    <label><span title=""Suavização temporal. MENOR = mais suave."">Alpha</span><input type=""range"" id=""alpha"" min=""0.02"" max=""1"" step=""0.01"" value=""0.25""><b class=""val"" id=""alpha_v"">0.25</b></label>
-    <label><span title=""Mistura espacial entre zonas vizinhas."">Spatial</span><input type=""range"" id=""spatial"" min=""0"" max=""1"" step=""0.01"" value=""0.5""><b class=""val"" id=""spatial_v"">0.50</b></label>
-    <label><span title=""Taxa de atualização dos LEDs."">FPS</span><input type=""range"" id=""targetFps"" min=""0"" max=""120"" step=""1"" value=""25""><b class=""val"" id=""targetFps_v"">25</b></label>
+    <h2>Motion</h2>
+    <label><span title=""Temporal smoothing. LOWER = smoother."">Alpha</span><input type=""range"" id=""alpha"" min=""0.02"" max=""1"" step=""0.01"" value=""0.25""><b class=""val"" id=""alpha_v"">0.25</b></label>
+    <label><span title=""Spatial blend between neighboring zones."">Spatial</span><input type=""range"" id=""spatial"" min=""0"" max=""1"" step=""0.01"" value=""0.5""><b class=""val"" id=""spatial_v"">0.50</b></label>
+    <label><span title=""LED update rate."">FPS</span><input type=""range"" id=""targetFps"" min=""0"" max=""120"" step=""1"" value=""25""><b class=""val"" id=""targetFps_v"">25</b></label>
     <div class=""chips"" style=""margin-top:10px"">
-      <div class=""chip"" data-cmd=""adaptiveGamma=0"">gama fixa</div>
-      <div class=""chip"" data-cmd=""adaptiveGamma=1"">gama adapt.</div>
+      <div class=""chip"" data-cmd=""adaptiveGamma=0"">fixed gamma</div>
+      <div class=""chip"" data-cmd=""adaptiveGamma=1"">adaptive gamma</div>
     </div>
   </div>
   <div class=""card"">
-    <h2>Mapeamento</h2>
-    <label><span title=""Rotaciona mapeamento LED."">mapOffset</span><input type=""range"" id=""mapOffset"" min=""-4096"" max=""4096"" step=""1"" value=""0""><b class=""val"" id=""mapOffset_v"">0</b></label>
+    <h2>Mapping</h2>
+    <label><span title=""Rotates LED mapping."">mapOffset</span><input type=""range"" id=""mapOffset"" min=""-4096"" max=""4096"" step=""1"" value=""0""><b class=""val"" id=""mapOffset_v"">0</b></label>
     <div class=""chips"" style=""margin-top:10px"">
-      <div class=""chip"" data-cmd=""mapReverse=0"">horário</div>
-      <div class=""chip"" data-cmd=""mapReverse=1"">anti-horário</div>
+      <div class=""chip"" data-cmd=""mapReverse=0"">clockwise</div>
+      <div class=""chip"" data-cmd=""mapReverse=1"">counter-clockwise</div>
     </div>
     <div class=""chips"" style=""margin-top:8px"">
-      <div class=""chip"" data-cmd=""test=1"" title=""4 cores: topo=vermelho, direita=verde, baixo=azul, esquerda=amarelo"">test pattern ON</div>
+      <div class=""chip"" data-cmd=""test=1"" title=""4 colors: top=red, right=green, bottom=blue, left=yellow"">test pattern ON</div>
       <div class=""chip"" data-cmd=""test=0"">test pattern OFF</div>
     </div>
   </div>
   <div class=""card"">
     <h2>Tuning</h2>
     <div class=""chips"">
-      <div class=""chip"" data-cmd=""pause"" title=""Pausa captura (evita wedge no scaler)"">pausar</div>
-      <div class=""chip"" data-cmd=""run"">resumir</div>
-      <div class=""chip"" data-cmd=""zhex=1"" title=""Dump hex de todas as zonas no log"">dump zonas</div>
+      <div class=""chip"" data-cmd=""pause"" title=""Pause capture (avoids scaler wedge)"">pause</div>
+      <div class=""chip"" data-cmd=""run"">resume</div>
+      <div class=""chip"" data-cmd=""zhex=1"" title=""Dump hex of all zones to log"">dump zones</div>
     </div>
     <div class=""chips"" style=""margin-top:8px"">
       <div class=""chip"" data-cmd=""backend=0"">backend auto</div>
-      <div class=""chip"" data-cmd=""backend=2"" title=""Força PPI (pra Netflix/DRM)"">PPI travado</div>
+      <div class=""chip"" data-cmd=""backend=2"" title=""Force PPI (for Netflix/DRM)"">PPI locked</div>
     </div>
     <div class=""chips"" style=""margin-top:8px"">
-      <div class=""chip"" data-preset=""cinema"" title=""Suave, escuro, cores quentes"">cinema</div>
-      <div class=""chip"" data-preset=""gaming"" title=""Responsivo, vivo, brilhante"">gaming</div>
-      <div class=""chip"" data-preset=""reset"" title=""Volta pros defaults"">reset</div>
+      <div class=""chip"" data-preset=""cinema"" title=""Smooth, dark, warm colors"">cinema</div>
+      <div class=""chip"" data-preset=""gaming"" title=""Responsive, vivid, bright"">gaming</div>
+      <div class=""chip"" data-preset=""reset"" title=""Back to defaults"">reset</div>
     </div>
     <div class=""row"" style=""margin-top:10px"">
-      <input type=""text"" id=""token"" placeholder=""token avançado (ex: gamma=2,gain=1.2)"" style=""flex:1;background:#222831;border:1px solid #333c48;border-radius:7px;padding:8px 11px;color:#e6e9ee;font-size:13px;min-height:36px"">
-      <button onclick=""send(document.getElementById('token').value)"">enviar</button>
+      <input type=""text"" id=""token"" placeholder=""advanced token (e.g. gamma=2,gain=1.2)"" style=""flex:1;background:#222831;border:1px solid #333c48;border-radius:7px;padding:8px 11px;color:#e6e9ee;font-size:13px;min-height:36px"">
+      <button onclick=""send(document.getElementById('token').value)"">send</button>
     </div>
   </div>
   <div class=""card"">
-    <h2>Preview LED Strip</h2>
+    <h2>LED Strip Preview</h2>
     <canvas id=""strip"" width=""500"" height=""320"" style=""width:100%;border-radius:8px""></canvas>
-    <div class=""sub"" style=""margin:8px 0 0"">Cores ao vivo · fita 194 LEDs · teste pattern mostra cores de mapeamento</div>
+    <div class=""sub"" style=""margin:8px 0 0"">Live colors · 194 LED strip · test pattern shows mapping colors</div>
   </div>
   <div class=""card"">
     <h2>Status</h2>
-    <div id=""status"">carregando...</div>
+    <div id=""status"">loading...</div>
   </div>
 </div>
-<div id=""log"">pronto</div>
+<div id=""log"">ready</div>
 <script>
 const $ = id => document.getElementById(id);
 const sliders = ['gamma','gain','saturation','black','alpha','spatial','targetFps','mapOffset','ledCount','bandFrac','zoneSample'];
@@ -146,7 +146,7 @@ sliders.forEach(v => {
 function save(key, val) {
   fetch('/api/config', {method:'POST', body:JSON.stringify({[key]:parseFloat(val)}), headers:{'Content-Type':'application/json'}})
     .then(r => r.text()).then(t => $('log').textContent = '> ' + key + '=' + val + '\n' + t)
-    .catch(e => $('log').textContent = 'erro: ' + e);
+    .catch(e => $('log').textContent = 'error: ' + e);
 }
 function saveSetup() {
   const ip = $('wledIp').value.trim();
@@ -156,19 +156,19 @@ function saveSetup() {
   d.bandFrac = parseFloat($('bandFrac').value) || 0.08;
   d.zoneSample = parseInt($('zoneSample').value) || 3;
   fetch('/api/config', {method:'POST', body:JSON.stringify(d), headers:{'Content-Type':'application/json'}})
-    .then(r => r.text()).then(t => { $('log').textContent = '> setup salvo\n' + t; setTimeout(restartApp, 500); })
-    .catch(e => $('log').textContent = 'erro: ' + e);
+    .then(r => r.text()).then(t => { $('log').textContent = '> setup saved\n' + t; setTimeout(restartApp, 500); })
+    .catch(e => $('log').textContent = 'error: ' + e);
 }
 function restartApp() {
   fetch('/api/control', {method:'POST', body:'pause', headers:{'Content-Type':'text/plain'}})
-    .then(() => { $('log').textContent = '> app reiniciando... (aguarde ~5s)'; })
-    .catch(e => $('log').textContent = 'erro: ' + e);
+    .then(() => { $('log').textContent = '> restarting app... (wait ~5s)'; })
+    .catch(e => $('log').textContent = 'error: ' + e);
 }
 function send(cmd) {
   fetch('/api/control', {method:'POST', body:cmd, headers:{'Content-Type':'text/plain'}})
     .then(r => r.text())
     .then(t => { $('log').textContent = '> ' + cmd + '\n' + t; $('log').scrollTop = $('log').scrollHeight; })
-    .catch(e => $('log').textContent = 'erro: ' + e);
+    .catch(e => $('log').textContent = 'error: ' + e);
 }
 function loadStatus() {
   fetch('/api/status').then(r => r.json()).then(d => {
