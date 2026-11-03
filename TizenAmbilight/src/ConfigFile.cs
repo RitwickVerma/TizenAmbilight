@@ -59,7 +59,64 @@ namespace TizenAmbilight
             _values = values ?? new Dictionary<string, object>(StringComparer.Ordinal);
         }
 
+        /// <summary>Set one key in the in-memory dictionary.</summary>
+        public static void SetKey(string key, object value)
+        {
+            if (string.IsNullOrEmpty(key)) return;
+            _values[key] = value;
+        }
+
+        /// <summary>Write the current values back to <paramref name="path"/> as flat JSON.</summary>
+        public static bool Save(string path)
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                sb.Append("{\n");
+                bool first = true;
+                foreach (var kv in _values)
+                {
+                    if (!first) sb.Append(",\n");
+                    first = false;
+                    sb.Append("  ").Append(Quote(kv.Key)).Append(": ");
+                    AppendValue(sb, kv.Value);
+                }
+                if (!first) sb.Append('\n');
+                sb.Append("}\n");
+                System.IO.File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
+                return true;
+            }
+            catch { return false; }
+        }
+
+        static void AppendValue(StringBuilder sb, object v)
+        {
+            if (v == null) { sb.Append("null"); return; }
+            if (v is bool) { sb.Append((bool)v ? "true" : "false"); return; }
+            if (v is double) { sb.Append(((double)v).ToString("R", CultureInfo.InvariantCulture)); return; }
+            if (v is int) { sb.Append(((int)v).ToString(CultureInfo.InvariantCulture)); return; }
+            if (v is long) { sb.Append(((long)v).ToString(CultureInfo.InvariantCulture)); return; }
+            sb.Append(Quote(v.ToString()));
+        }
+
+        static string Quote(string s)
+        {
+            var sb = new StringBuilder("\"");
+            foreach (char c in s)
+            {
+                if (c == '"') sb.Append("\\\"");
+                else if (c == '\\') sb.Append("\\\\");
+                else if (c < 0x20) sb.Append("\\u").Append(((int)c).ToString("x4"));
+                else sb.Append(c);
+            }
+            sb.Append('"');
+            return sb.ToString();
+        }
+
         public static int Count { get { return _values.Count; } }
+
+        /// <summary>Return all loaded values (for the web dashboard's config endpoint).</summary>
+        public static IEnumerable<KeyValuePair<string, object>> All() { return _values; }
 
         public static bool TryGetString(string key, out string value)
         {
