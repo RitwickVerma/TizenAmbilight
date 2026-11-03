@@ -10,7 +10,7 @@ namespace TizenAmbilight
 {
     static partial class Ambilight
     {
-        static TcpListener _webListener;
+        static HttpListener _webListener;
         static volatile bool _webRunning;
 
         static string HtmlPage()
@@ -126,7 +126,7 @@ namespace TizenAmbilight
   </div>
   <div class=""card"">
     <h2>Preview LED Strip</h2>
-    <canvas id=""strip"" width=""400"" height=""240"" style=""width:100%;border-radius:8px""></canvas>
+    <canvas id=""strip"" width=""500"" height=""320"" style=""width:100%;border-radius:8px""></canvas>
     <div class=""sub"" style=""margin:8px 0 0"">Cores ao vivo · fita 194 LEDs · teste pattern mostra cores de mapeamento</div>
   </div>
   <div class=""card"">
@@ -236,68 +236,130 @@ function drawStrip(d) {
   const mapOffset = d.mapOffset || 0;
   const mapReverse = d.mapReverse || false;
 
-  // draw perimeter as colored blocks
-  const pad = 30;
+  // ---- perimeter rectangle ----
+  const pad = 24;
+  const bw = 12;
   const innerW = W - pad * 2;
-  const innerH = H - pad * 2;
+  const innerH = H - pad * 2 - 50;
 
   // top edge (zones 0..tc-1)
   const topW = innerW / tc;
   for (let i = 0; i < tc; i++) {
     const z = zones[i];
     ctx.fillStyle = `rgb(${z[0]},${z[1]},${z[2]})`;
-    ctx.fillRect(pad + i * topW, pad, topW + 0.5, 14);
+    ctx.fillRect(pad + i * topW, pad, topW + 0.5, bw);
   }
   // right edge (zones tc..tc+rc-1)
   const rightH = innerH / rc;
   for (let i = 0; i < rc; i++) {
     const z = zones[tc + i];
     ctx.fillStyle = `rgb(${z[0]},${z[1]},${z[2]})`;
-    ctx.fillRect(W - pad - 14, pad + i * rightH, 14, rightH + 0.5);
+    ctx.fillRect(W - pad - bw, pad + i * rightH, bw, rightH + 0.5);
   }
   // bottom edge (zones tc+rc..tc+rc+bc-1), reversed
   const botW = innerW / bc;
   for (let i = 0; i < bc; i++) {
     const z = zones[tc + rc + i];
     ctx.fillStyle = `rgb(${z[0]},${z[1]},${z[2]})`;
-    ctx.fillRect(W - pad - (i + 1) * botW, H - pad - 14, botW + 0.5, 14);
+    ctx.fillRect(W - pad - (i + 1) * botW, H - pad - 50 - bw, botW + 0.5, bw);
   }
   // left edge (zones tc+rc+bc..total-1), reversed
   const leftH = innerH / lc;
   for (let i = 0; i < lc; i++) {
     const z = zones[tc + rc + bc + i];
     ctx.fillStyle = `rgb(${z[0]},${z[1]},${z[2]})`;
-    ctx.fillRect(pad, H - pad - (i + 1) * leftH, 14, leftH + 0.5);
+    ctx.fillRect(pad, H - pad - 50 - (i + 1) * leftH, bw, leftH + 0.5);
   }
 
-  // mapping indicator: rotate marker showing mapOffset start position
-  const cx = W / 2, cy = H / 2;
-  const angle = (mapOffset / total) * Math.PI * 2 - Math.PI / 2;
-  const dir = mapReverse ? -1 : 1;
-  const ir = Math.min(innerW, innerH) * 0.25;
-
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(angle);
-  ctx.beginPath();
-  ctx.moveTo(0, -ir);
-  ctx.lineTo(-8, -ir + 18);
-  ctx.lineTo(8, -ir + 18);
-  ctx.closePath();
+  // ---- start marker: bright ring at the FIRST LED position (mapOffset) ----
+  // find which edge/slot the start zone falls on
+  let sx = pad, sy = pad;
+  if (mapOffset < tc) {
+    sx = pad + mapOffset * topW + topW / 2; sy = pad + bw / 2;
+  } else if (mapOffset < tc + rc) {
+    sx = W - pad - bw / 2; sy = pad + (mapOffset - tc) * rightH + rightH / 2;
+  } else if (mapOffset < tc + rc + bc) {
+    sx = W - pad - (mapOffset - tc - rc + 0.5) * botW; sy = H - pad - 50 - bw / 2;
+  } else {
+    sx = pad + bw / 2; sy = H - pad - 50 - (mapOffset - tc - rc - bc + 0.5) * leftH;
+  }
+  // glowing start dot
+  const grd = ctx.createRadialGradient(sx, sy, 0, sx, sy, 18);
+  grd.addColorStop(0, 'rgba(255,255,255,1)');
+  grd.addColorStop(0.5, 'rgba(255,255,255,0.6)');
+  grd.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = grd;
+  ctx.beginPath(); ctx.arc(sx, sy, 18, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#fff';
-  ctx.fill();
-  // direction arrow
-  ctx.beginPath();
-  ctx.arc(0, 0, ir, dir > 0 ? -Math.PI / 2 : Math.PI / 2, dir > 0 ? -Math.PI / 2 + 0.6 : Math.PI / 2 + 0.6, dir < 0);
-  ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.restore();
+  ctx.beginPath(); ctx.arc(sx, sy, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(sx, sy, 6, 0, Math.PI * 2); ctx.stroke();
 
-  // label
+  // ---- direction arrows along the perimeter ----
+  const dir = mapReverse ? -1 : 1;
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 1.5;
+  const arrowStep = Math.floor(total / 8);
+  for (let a = 0; a < total; a += arrowStep) {
+    const zi = ((mapOffset + dir * a) % total + total) % total;
+    let ax, ay, angle;
+    if (zi < tc) {
+      ax = pad + zi * topW + topW / 2; ay = pad + bw + 8;
+      angle = dir > 0 ? 0 : Math.PI;
+    } else if (zi < tc + rc) {
+      ax = W - pad - bw - 8; ay = pad + (zi - tc) * rightH + rightH / 2;
+      angle = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+    } else if (zi < tc + rc + bc) {
+      ax = W - pad - (zi - tc - rc + 0.5) * botW; ay = H - pad - 50 - bw - 8;
+      angle = dir > 0 ? Math.PI : 0;
+    } else {
+      ax = pad + bw + 8; ay = H - pad - 50 - (zi - tc - rc - bc + 0.5) * leftH;
+      angle = dir > 0 ? -Math.PI / 2 : Math.PI / 2;
+    }
+    ctx.save();
+    ctx.translate(ax, ay);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(-5, -4); ctx.lineTo(5, 0); ctx.lineTo(-5, 4);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // ---- linear zone strip (bottom) ----
+  const stripY = H - 38;
+  const stripW = W - pad * 2;
+  const segW = stripW / total;
+  for (let i = 0; i < total; i++) {
+    const z = zones[i];
+    ctx.fillStyle = `rgb(${z[0]},${z[1]},${z[2]})`;
+    ctx.fillRect(pad + i * segW, stripY, segW + 0.5, 16);
+  }
+  // frame
+  ctx.strokeStyle = '#333c48';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(pad, stripY, stripW, 16);
+  // start marker on linear strip
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.moveTo(pad + mapOffset * segW + segW / 2, stripY - 4);
+  ctx.lineTo(pad + mapOffset * segW + segW / 2 - 5, stripY - 11);
+  ctx.lineTo(pad + mapOffset * segW + segW / 2 + 5, stripY - 11);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(pad + mapOffset * segW, stripY - 2);
+  ctx.lineTo(pad + mapOffset * segW, stripY + 18);
+  ctx.stroke();
+
+  // labels
   ctx.fillStyle = '#8a93a3';
-  ctx.font = '11px system-ui';
-  ctx.fillText(`map=${mapOffset} rev=${mapReverse ? 1 : 0} · ${total} zonas`, pad, H - 8);
+  ctx.font = '10px system-ui';
+  ctx.fillText('0', pad, stripY + 30);
+  ctx.fillText(String(total), W - pad - 12, stripY + 30);
+  ctx.fillText(`map=${mapOffset} rev=${mapReverse ? 1 : 0} · ${total} zonas · inicio LED ${mapOffset}`, pad, 14);
 }
 </script>
 </body>
@@ -308,38 +370,35 @@ function drawStrip(d) {
         {
             try
             {
-                IPAddress addr = string.IsNullOrEmpty(bindAddr) || bindAddr == "0.0.0.0"
-                    ? IPAddress.Any
-                    : IPAddress.Parse(bindAddr);
-                _webListener = new TcpListener(addr, port);
+                string prefix = "http://" + (string.IsNullOrEmpty(bindAddr) || bindAddr == "0.0.0.0" ? "+" : bindAddr) + ":" + port + "/";
+                _webListener = new HttpListener();
+                _webListener.Prefixes.Add(prefix);
                 _webListener.Start();
                 _webRunning = true;
-                L("web: listening on " + addr + ":" + port);
+                L("web: listening on " + prefix);
                 while (_webRunning)
                 {
-                    TcpClient client = _webListener.AcceptTcpClient();
-                    ThreadPool.QueueUserWorkItem(_ => HandleClient(client));
+                    var ctx = _webListener.GetContext();
+                    ThreadPool.QueueUserWorkItem(_ => HandleContext(ctx));
                 }
             }
             catch (Exception e) { L("web: " + e.Message); _webRunning = false; }
         }
 
-        static void HandleClient(TcpClient client)
+        static void HandleContext(HttpListenerContext ctx)
         {
             try
             {
-                client.NoDelay = true;
-                var stream = client.GetStream();
-                var req = ReadHttpRequest(stream);
-                if (req == null) { client.Close(); return; }
-
-                string path = req["path"].ToLowerInvariant();
-                string method = req["method"];
-                string body = req.ContainsKey("body") ? req["body"] : "";
+                var req = ctx.Request;
+                var res = ctx.Response;
+                string path = req.Url.AbsolutePath.ToLowerInvariant();
+                string method = req.HttpMethod;
+                string body = "";
+                if (method == "POST" && req.HasEntityBody)
+                    body = new StreamReader(req.InputStream, Encoding.UTF8).ReadToEnd();
 
                 byte[] resp;
                 string contentType = "application/json";
-                int status = 200;
 
                 if (path == "/" || path == "/index.html")
                 {
@@ -372,80 +431,15 @@ function drawStrip(d) {
                 else
                 {
                     resp = Encoding.UTF8.GetBytes("{\"error\":\"not found\"}");
-                    status = 404;
+                    res.StatusCode = 404;
                 }
 
-                WriteHttpResponse(stream, status, contentType, resp);
-                stream.Close();
-                client.Close();
+                res.ContentType = contentType;
+                res.ContentLength64 = resp.Length;
+                res.OutputStream.Write(resp, 0, resp.Length);
+                res.OutputStream.Close();
             }
-            catch { try { client.Close(); } catch { } }
-        }
-
-        static Dictionary<string, string> ReadHttpRequest(NetworkStream stream)
-        {
-            var buf = new byte[16384];
-            int pos = 0;
-            var sb = new StringBuilder();
-            // read until \r\n\r\n
-            while (pos < buf.Length)
-            {
-                int n = stream.Read(buf, pos, 1);
-                if (n <= 0) return null;
-                sb.Append((char)buf[pos]);
-                pos++;
-                string s = sb.ToString();
-                if (s.EndsWith("\r\n\r\n"))
-                {
-                    // parse headers
-                    var lines = s.Split(new[] { "\r\n" }, StringSplitOptions.None);
-                    var parts = lines[0].Split(' ');
-                    if (parts.Length < 2) return null;
-                    var req = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                    req["method"] = parts[0].ToUpperInvariant();
-                    req["path"] = parts[1];
-                    int contentLen = 0;
-                    for (int i = 1; i < lines.Length; i++)
-                    {
-                        int ci = lines[i].IndexOf(':');
-                        if (ci > 0)
-                        {
-                            string key = lines[i].Substring(0, ci).Trim();
-                            string val = lines[i].Substring(ci + 1).Trim();
-                            if (key.Equals("Content-Length", StringComparison.OrdinalIgnoreCase))
-                                int.TryParse(val, out contentLen);
-                        }
-                    }
-                    // read body
-                    if (contentLen > 0 && contentLen < 65536)
-                    {
-                        var bodyBuf = new byte[contentLen];
-                        int total = 0;
-                        while (total < contentLen)
-                        {
-                            int r = stream.Read(bodyBuf, total, contentLen - total);
-                            if (r <= 0) break;
-                            total += r;
-                        }
-                        req["body"] = Encoding.UTF8.GetString(bodyBuf, 0, total);
-                    }
-                    return req;
-                }
-            }
-            return null;
-        }
-
-        static void WriteHttpResponse(NetworkStream stream, int status, string contentType, byte[] body)
-        {
-            string statusText = status == 200 ? "OK" : status == 404 ? "Not Found" : "Error";
-            string header = "HTTP/1.1 " + status + " " + statusText + "\r\n" +
-                            "Content-Type: " + contentType + "\r\n" +
-                            "Content-Length: " + body.Length + "\r\n" +
-                            "Connection: close\r\n\r\n";
-            byte[] hdr = Encoding.ASCII.GetBytes(header);
-            stream.Write(hdr, 0, hdr.Length);
-            stream.Write(body, 0, body.Length);
-            stream.Flush();
+            catch { try { ctx.Response.StatusCode = 500; ctx.Response.Close(); } catch { } }
         }
 
         static string ConfigToJson()
