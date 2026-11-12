@@ -10,6 +10,9 @@ workflow:
       when: never
     - when: always
 
+default:
+  interruptible: true # A newer push cancels this pipeline's unfinished jobs: the shared runner is busiest exactly when pushes come quickly.
+
 variables:
   GIT_DEPTH: "1"   # nothing needs history; keeps the media blobs out of old commits off the wire
 
