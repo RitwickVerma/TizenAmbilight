@@ -74,7 +74,7 @@ namespace TizenAmbilight
         public const string AppId = "dev.ritwickverma.TizenAmbilight";
         // Bump this whenever behaviour changes. It sat at "v3" through the HDR decode, the BT.2020->709
         // gamut map and the adaptive tone curve, which made build identification useless in telemetry.
-        public const string Version = "v6";
+        public const string Version = "v7";
 
         // ---- failure handling ----
         const int FailSleepMs = 200;                     // pause after a frame-less iteration
@@ -837,6 +837,13 @@ namespace TizenAmbilight
                     {
                         smoothed = new ZoneColors(raw.Count);
                         smoothed.CopyFrom(raw);
+                    }
+                    else if (ppiDtSec > 0)
+                    {
+                        // sampler: decide fast/slow per zone (see SmoothTowardsPerZone)
+                        double slowA = 1.0 - Math.Pow(1.0 - cfg.Alpha, ppiDtSec * 25.0);
+                        double fastA = 1.0 - Math.Pow(1.0 - cfg.AlphaFast, ppiDtSec * 25.0);
+                        smoothed.SmoothTowardsPerZone(raw, slowA, fastA, cfg.AlphaCut);
                     }
                     else
                     {
