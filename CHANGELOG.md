@@ -6,6 +6,13 @@ identifier.
 
 ## [Unreleased]
 
+### Added (v7)
+- **Tizen 8 sampler.** Tizen 8 firmware exports the RGB-measure API as `ve_*` instead of `ppi_ve_*`, so
+  the sampler found nothing and the app had no source on those TVs. It now tries `ppi_ve`, `ve` and
+  `cs_ve` and uses the first complete family (reported as `ppi.family` in telemetry). Verified on a 2023
+  S90C (Tizen 8.0), where full-frame capture is blocked even with a partner certificate and the sampler
+  is the only source.
+
 ### Fixed
 - Docs: signing needs a **partner**-level certificate. A public certificate installs and starts the app,
   but Tizen blocks the capture libraries (`Operation not permitted`). Reported in #1; the docs

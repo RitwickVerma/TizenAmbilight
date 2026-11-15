@@ -51,9 +51,10 @@ namespace TizenAmbilight
     {
         public const string BackendName = "ppi";
         const string LibPath = "/usr/lib/libvideoenhance.so";
-        const string SymCond = "ppi_ve_get_rgb_measure_condition";
-        const string SymPos = "ppi_ve_set_rgb_measure_position";
-        const string SymPix = "ppi_ve_get_rgb_measure_pixel";
+        // Samsung renamed the export family across firmware generations: ppi_ve_ (Tizen 9+), ve_ (Tizen 7/8,
+        // confirmed on a 2023 S90C / Tizen 8.0), cs_ve_ (older). Same signatures; the first complete family wins.
+        static readonly string[] Families = { "ppi_ve", "ve", "cs_ve" };
+        public static string Family = "";
 
         const int RTLD_LAZY = 0x00001;
         const int BufBytes = 256;
@@ -120,10 +121,17 @@ namespace TizenAmbilight
                     if (_lib == IntPtr.Zero) _lib = dlopen(LibPath, RTLD_LAZY);
                     if (_lib == IntPtr.Zero) _lib = dlopen("libvideoenhance.so", RTLD_LAZY);
                     if (_lib == IntPtr.Zero) return Fail("dlopen libvideoenhance.so failed (no hardware measure API on this TV)");
-                    IntPtr fc = dlsym(_lib, SymCond), fp = dlsym(_lib, SymPos), fx = dlsym(_lib, SymPix);
-                    if (fc == IntPtr.Zero || fp == IntPtr.Zero || fx == IntPtr.Zero)
-                        return Fail("dlsym failed: cond=" + (fc != IntPtr.Zero) + " pos=" + (fp != IntPtr.Zero) +
-                                    " pix=" + (fx != IntPtr.Zero));
+                    IntPtr fc = IntPtr.Zero, fp = IntPtr.Zero, fx = IntPtr.Zero;
+                    string seen = "";
+                    foreach (string fam in Families)
+                    {
+                        fc = dlsym(_lib, fam + "_get_rgb_measure_condition");
+                        fp = dlsym(_lib, fam + "_set_rgb_measure_position");
+                        fx = dlsym(_lib, fam + "_get_rgb_measure_pixel");
+                        seen += fam + "=" + (fc != IntPtr.Zero) + "/" + (fp != IntPtr.Zero) + "/" + (fx != IntPtr.Zero) + " ";
+                        if (fc != IntPtr.Zero && fp != IntPtr.Zero && fx != IntPtr.Zero) { Family = fam; break; }
+                    }
+                    if (Family.Length == 0) return Fail("dlsym failed: " + seen.Trim());
                     if (_condBuf == IntPtr.Zero) _condBuf = Marshal.AllocHGlobal(BufBytes);   // once: a retry must not leak
                     if (_colBuf == IntPtr.Zero) _colBuf = Marshal.AllocHGlobal(BufBytes);
                     Marshal.Copy(_zero, 0, _condBuf, BufBytes);
@@ -141,7 +149,7 @@ namespace TizenAmbilight
                     FullH = Marshal.ReadInt32(_condBuf, 20);
                     CondExtra6 = Marshal.ReadInt32(_condBuf, 24);
                     CondExtra7 = Marshal.ReadInt32(_condBuf, 28);
-                    if (CondRc < 0) return Fail("ppi_ve_get_rgb_measure_condition rc=" + CondRc);
+                    if (CondRc < 0) return Fail(Family + "_get_rgb_measure_condition rc=" + CondRc);
                     if (Slots <= 0 || FullW <= 0 || FullH <= 0 || BlockW <= 0 || BlockH <= 0)
                         return Fail("implausible condition: slots=" + Slots + " full=" + FullW + "x" + FullH +
                                     " block=" + BlockW + "x" + BlockH);
@@ -785,6 +793,7 @@ namespace TizenAmbilight
             {
                 { "ready", Ready },
                 { "init_error", InitError ?? "" },
+                { "family", Family },
                 { "sampler_running", Running },
                 { "thread_errors", Interlocked.Read(ref ThreadErrors) },
                 { "thread_last_error", LastError },
