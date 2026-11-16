@@ -283,6 +283,7 @@ namespace TizenAmbilight
         /// NOTE: the returned Y/C reference these class's STATIC buffers, so a caller must consume
         /// them before the next Capture(). The render loop does (it reads them in the same
         /// iteration). Holding a result across a capture would observe mutating data.</summary>
+        static int _lastRetW, _lastRetH;   // last non-zero dims the library reported (see Capture)
         public static VideoPlaneResult Capture()
         {
             if (!_cfProbed) ProbeColorFormatOnce();
@@ -321,6 +322,14 @@ namespace TizenAmbilight
                 // layout is built from these, so a size change is picked up automatically.
                 int aw = Marshal.ReadInt32(_param, OffRetWidth);
                 int ah = Marshal.ReadInt32(_param, OffRetHeight);
+                // Tizen 5.5 (2020 TU7000): the library fills the buffers as a tightly packed 720x540
+                // picture on EVERY call, but writes the returned dims only on every other call and
+                // leaves 0x0 on the rest. Falling back to the 960x540 request on those calls read the
+                // packed buffer with the wrong stride (scrambled frame) and rebuilt the zone layout
+                // each frame, so the strip flickered between two looks. Keep the last dims the
+                // library actually reported and use them when it reports none.
+                if (aw > 0 && ah > 0) { _lastRetW = aw; _lastRetH = ah; }
+                else if (_lastRetW > 0 && _lastRetH > 0) { aw = _lastRetW; ah = _lastRetH; }
                 r.W = (aw > 0 ? aw : ReqW);
                 r.H = (ah > 0 ? ah : ReqH);
                 // ABI SANITY CLAMP. If a firmware upgrade changes the param layout these fields could
