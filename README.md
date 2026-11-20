@@ -56,7 +56,7 @@ that TV. Other models are untested, not known to fail.
 |---|---|---|
 | 2025 | 9.0 | ✅ Works on the S84F (OLED, `QN77S84FAEXZA`). Other Tizen 9 models are likely to work but unconfirmed; one Q7F user reports capture is blocked unless the app is signed with a partner certificate ([#1](https://github.com/RitwickVerma/TizenAmbilight/issues/1)). |
 | 2026 | 10.0 | ❔ Untested |
-| 2022–2024 | 6.5–8.0 | ❔ Untested. The app targets `tizen90`; whether Tizen 8 and older can run it, and whether they have the libraries below, is unknown. |
+| 2022–2024 | 6.5–8.0 | ⚠️ One report: a 2023 S90C (`QE77S90CATXXH`, Tizen 8.0, partner certificate) runs the `tizen90` build, but full-frame capture is blocked by the firmware; it works on the hardware sampler only (12 spots), which needs v7 or later. Other models untested. |
 | 2021 | 6.0 | ❌ One report (QN90A, [#2](https://github.com/RitwickVerma/TizenAmbilight/issues/2)): starts only after retargeting to `tizen80`; the video-plane call exists with the documented layout but returns `rc=-95`. Was the build signed partner? Open question. |
 | 2020 and older | ≤ 5.5 | ❌ Unknown, probably not without porting work. Untested. |
 
