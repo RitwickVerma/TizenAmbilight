@@ -45,6 +45,57 @@ To check the result, send `test=1` on the control channel. The strip then shows 
 right = green, bottom = blue, left = yellow. Adjust `map=` and `rev=` live until the colours line up,
 then copy the values into `config.json`.
 
+### Choosing the installed edges
+
+`edgeTop`, `edgeRight`, `edgeBottom` and `edgeLeft` independently enable the edges
+that have LEDs. Each defaults to `true` when omitted. Changes take effect after
+rebuilding with the updated `config.json` and restarting the app; these settings
+have no live control tokens.
+
+For a strip installed only below the TV, merge the following into your config
+and set `ledCount` to the number of physical LEDs:
+
+```json
+{
+  "edgeTop": false,
+  "edgeRight": false,
+  "edgeBottom": true,
+  "edgeLeft": false
+}
+```
+
+The full `zoneCount` is distributed over enabled edges in proportion to their
+lengths, with at least one zone per enabled edge. Disabled edges get no zones.
+With bottom only, all zones sample the lower band. Setting all four to `false`
+skips capture and holds the strip black (when output is enabled and WLED is configured).
+
+Zones retain clockwise order: top left-to-right, right top-to-bottom, bottom
+right-to-left, left bottom-to-top, skipping disabled edges. `mapOffset` now counts
+within that reduced sequence. For bottom only, `mapOffset: 0` and `mapReverse: 0`
+put LED 0 at the right end as seen from the front. If LED 0 is at the left end,
+use `mapOffset` equal to `zoneCount - 1` and `mapReverse: 1`.
+
+Spatial smoothing and PPI interpolation stop at missing edges; they do not blend
+the two ends of a bottom-only strip or bridge opposite edges. Adjacent enabled
+edges still blend around their shared corner. PPI includes the endpoints of each
+open run in its measurement positions, while preserving the configured spot count.
+The four-edge layout, sampling and LED mapping remain unchanged by default.
+With `test=1`, only installed edges appear in their usual test colours (bottom = blue).
+
+### Apps2Samsung install form
+
+The catalog entry in `packaging/apps2samsung/` exposes each edge as an optional
+number field: `1` enables it, `0` disables it, and leaving it blank keeps it enabled.
+For bottom only, enter top = `0`, right = `0`, bottom = `1`, left = `0`.
+The installer writes these values into `res/config.json` before signing the TPK.
+
+The official Apps2Samsung catalog is maintained separately in
+[Apps2Samsung/tizen-community-packages](https://github.com/Apps2Samsung/tizen-community-packages).
+Its `packages/RitwickVerma__TizenAmbilight.json` must receive the same fields after
+a release containing edge support is available. Editing the copy in this repository
+alone does not update the public install form. Installing a standalone local TPK
+also does not automatically load the form from this repository.
+
 ### All settings
 
 | key | default | meaning |
@@ -54,7 +105,8 @@ then copy the values into `config.json`.
 | `wledPort` | `21324` | WLED UDP realtime port |
 | `wledTimeout` | `1` | seconds WLED stays in live mode after the last frame (DRGB timeout byte) |
 | `ledCount` | `73` | LEDs on the strip, max 490 (one DRGB datagram). Set this. |
-| `zoneCount` | = `ledCount` | screen zones. Fewer than `ledCount` leaves the extra LEDs black. |
+| `zoneCount` | = `ledCount` | screen zones across enabled edges. Fewer than `ledCount` leaves the extra LEDs black. |
+| `edgeTop` / `edgeRight` / `edgeBottom` / `edgeLeft` | `true` each | enable installed screen edges; all false holds the strip black |
 | `mapOffset` / `mapReverse` | `0` / `0` | where the strip starts and which way it runs (see above) |
 | `outputEnabled` | `true` | master switch for UDP output |
 | **Colour and tone** | | |
