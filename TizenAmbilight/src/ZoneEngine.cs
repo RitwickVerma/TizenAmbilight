@@ -50,6 +50,24 @@ namespace TizenAmbilight
                 B[i] = (byte)(alpha * raw.B[i] + inv * B[i] + 0.5);
             }
         }
+
+        /// <summary>EMA per zone, choosing the alpha per zone: a zone whose colour moved more than
+        /// <paramref name="cut"/> (mean absolute channel delta) takes <paramref name="fast"/>.
+        /// The rolling sampler refreshes a couple of spots per frame, so a scene cut never moves
+        /// the frame-wide mean delta past the cut threshold; deciding per zone lets each spot snap
+        /// to the new picture the moment it is re-measured.</summary>
+        public void SmoothTowardsPerZone(ZoneColors raw, double slow, double fast, double cut)
+        {
+            int cut3 = (int)(cut * 3.0);
+            for (int i = 0; i < Count; i++)
+            {
+                int d = Math.Abs(raw.R[i] - R[i]) + Math.Abs(raw.G[i] - G[i]) + Math.Abs(raw.B[i] - B[i]);
+                double a = d > cut3 ? fast : slow, inv = 1.0 - a;
+                R[i] = (byte)(a * raw.R[i] + inv * R[i] + 0.5);
+                G[i] = (byte)(a * raw.G[i] + inv * G[i] + 0.5);
+                B[i] = (byte)(a * raw.B[i] + inv * B[i] + 0.5);
+            }
+        }
     }
 
     /// <summary>

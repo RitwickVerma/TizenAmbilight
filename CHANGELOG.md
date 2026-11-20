@@ -13,6 +13,12 @@ identifier.
   S90C (Tizen 8.0), where full-frame capture is blocked even with a partner certificate and the sampler
   is the only source.
 
+### Fixed (v7)
+- **Sampler smoothed every scene cut.** The rolling sampler re-measures only a couple of spots per frame,
+  so the frame-wide mean delta never crossed `alphaCut` and the fast alpha never engaged. On sampler
+  frames the slow/fast choice is now made per zone, so each spot snaps to a cut when it is re-measured.
+  The video-plane path is unchanged.
+
 ### Fixed
 - Docs: signing needs a **partner**-level certificate. A public certificate installs and starts the app,
   but Tizen blocks the capture libraries (`Operation not permitted`). Reported in #1; the docs

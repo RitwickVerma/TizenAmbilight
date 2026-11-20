@@ -838,6 +838,13 @@ namespace TizenAmbilight
                         smoothed = new ZoneColors(raw.Count);
                         smoothed.CopyFrom(raw);
                     }
+                    else if (ppiDtSec > 0)
+                    {
+                        // sampler: decide fast/slow per zone (see SmoothTowardsPerZone)
+                        double slowA = 1.0 - Math.Pow(1.0 - cfg.Alpha, ppiDtSec * 25.0);
+                        double fastA = 1.0 - Math.Pow(1.0 - cfg.AlphaFast, ppiDtSec * 25.0);
+                        smoothed.SmoothTowardsPerZone(raw, slowA, fastA, cfg.AlphaCut);
+                    }
                     else
                     {
                         smoothed.SmoothTowards(raw, useAlpha);
