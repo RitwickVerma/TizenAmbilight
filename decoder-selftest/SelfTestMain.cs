@@ -537,9 +537,125 @@ namespace DecoderSelfTest
 
             Console.WriteLine();
             Console.WriteLine("==================================================");
+            TestScreenEdges();
+
             Console.WriteLine("PASSED " + _pass + "   FAILED " + _fail);
             Console.WriteLine("==================================================");
             return _fail == 0 ? 0 : 1;
+        }
+
+        static void TestScreenEdges()
+        {
+            Console.WriteLine("[13] configurable screen edges and open-strip topology");
+            string[] names = { "top", "right", "bottom", "left" };
+            foreach (int total in new[] { 4, 5, 73, 120, 490 })
+            {
+                for (int mask = 0; mask < 16; mask++)
+                {
+                    var layout = new ZoneLayout(960, 540, total, 0.08, (ScreenEdges)mask);
+                    bool ok = layout.Total == (mask == 0 ? 0 : total)
+                        && layout.Zones.Length == layout.Total;
+                    int[] counts = { layout.TopCount, layout.RightCount, layout.BottomCount, layout.LeftCount };
+                    int sum = 0;
+                    for (int edge = 0; edge < 4; edge++)
+                    {
+                        sum += counts[edge];
+                        ok &= ((mask & (1 << edge)) == 0) ? counts[edge] == 0 : counts[edge] > 0;
+                    }
+                    ok &= sum == layout.Total;
+                    for (int i = 0; i < layout.Total; i++)
+                    {
+                        Zone z = layout.Zones[i];
+                        int edge = Array.IndexOf(names, z.Edge);
+                        ok &= (mask & (1 << edge)) != 0;
+                        ok &= z.X0 >= 0 && z.X1 <= 960 && z.X0 < z.X1
+                            && z.Y0 >= 0 && z.Y1 <= 540 && z.Y0 < z.Y1;
+                        int next = layout.Next[i], prev = layout.Previous[i];
+                        int circularNext = (i + 1) % layout.Total;
+                        bool joined = z.Edge == layout.Zones[circularNext].Edge
+                            ? circularNext != 0 : names[(edge + 1) % 4] == layout.Zones[circularNext].Edge;
+                        ok &= next == (joined ? circularNext : i);
+                        ok &= next == i || layout.Previous[next] == i;
+                        ok &= prev == i || layout.Next[prev] == i;
+                    }
+                    foreach (int requested in new[] { 4, 24, 73 })
+                    {
+                        int[] samples = layout.SampleZones(requested);
+                        ok &= samples.Length == Math.Min(layout.Total, requested);
+                        var seen = new HashSet<int>(samples);
+                        ok &= seen.Count == samples.Length;
+                        for (int i = 0; i < samples.Length; i++)
+                            ok &= samples[i] >= 0 && samples[i] < layout.Total && (i == 0 || samples[i] > samples[i - 1]);
+                        for (int i = 0; i < layout.Total; i++)
+                            if (layout.Previous[i] == i || layout.Next[i] == i) ok &= seen.Contains(i);
+                        var raw = new int[samples.Length * 3];
+                        for (int i = 0; i < raw.Length; i++) raw[i] = 512;
+                        var colors = new ZoneColors(layout.Total);
+                        layout.InterpolateSamples(samples, raw, samples.Length, colors.R, colors.G, colors.B);
+                        for (int i = 0; i < layout.Total; i++)
+                            ok &= colors.R[i] == 128 && colors.G[i] == 128 && colors.B[i] == 128;
+                    }
+                    Check(ok, "edge subsets: zones, bounds, connections, PPI coverage", "zones=" + total + " mask=" + mask);
+                }
+            }
+
+            var bottom = new ZoneLayout(80, 40, 8, 0.10, ScreenEdges.Bottom);
+            var image = SolidImage(80, 40, 0, 255, 0);
+            for (int y = 36; y < 40; y++)
+                for (int x = 0; x < 80; x++) SetPixel(image, x, y, (byte)(x < 40 ? 255 : 0), 0, (byte)(x < 40 ? 0 : 255));
+            ZoneColors extracted = bottom.Extract(image);
+            Check(extracted.B[0] == 255 && extracted.R[7] == 255 && extracted.G[0] == 0
+                  && bottom.BottomCount == 8 && bottom.Zones[0].X1 == 80 && bottom.Zones[7].X0 == 0,
+                  "bottom-only samples the entire lower band in right-to-left order", "");
+            var blur = new ZoneColors(8);
+            blur.R[0] = 200; blur.B[7] = 200;
+            Colors.SpatialRing(blur, 0.5, bottom);
+            Check(blur.B[0] == 0 && blur.R[7] == 0 && blur.R[0] == 150 && blur.B[7] == 150,
+                  "bottom blur holds open endpoints without wraparound", "");
+            var interp = new ZoneColors(8);
+            bottom.InterpolateSamples(new[] { 2, 5 }, new[] { 1020, 0, 0, 0, 0, 1020 }, 2, interp.R, interp.G, interp.B);
+            Check(interp.R[0] == 255 && interp.B[0] == 0 && interp.B[7] == 255 && interp.R[7] == 0
+                  && interp.R[3] == 170 && interp.B[3] == 85,
+                  "PPI interpolation holds endpoints and interpolates the interior", "");
+
+            var opposite = new ZoneLayout(80, 40, 8, 0.1, ScreenEdges.Top | ScreenEdges.Bottom);
+            var separate = new ZoneColors(8);
+            opposite.InterpolateSamples(new[] { 1 }, new[] { 1020, 0, 0 }, 1, separate.R, separate.G, separate.B);
+            bool isolated = true;
+            for (int i = 0; i < 8; i++) isolated &= separate.R[i] == (i < opposite.TopCount ? 255 : 0);
+            separate.R[opposite.TopCount - 1] = 255;
+            Colors.SpatialRing(separate, 1, opposite);
+            isolated &= separate.R[opposite.TopCount] == 0 && separate.R[7] == 0;
+            Check(isolated, "disconnected edges never share PPI samples or blur", "unmeasured run stays black");
+
+            var corner = new ZoneLayout(80, 40, 8, 0.1, ScreenEdges.Top | ScreenEdges.Left);
+            Check(corner.Next[7] == 0 && corner.Previous[0] == 7
+                  && corner.Next[corner.TopCount - 1] == corner.TopCount - 1,
+                  "adjacent left/top edges connect across the zone-array seam", "");
+            var cornerColors = new ZoneColors(8);
+            corner.InterpolateSamples(new[] { 0, 6 }, new[] { 0, 0, 1020, 1020, 0, 0 }, 2,
+                                      cornerColors.R, cornerColors.G, cornerColors.B);
+            Check(cornerColors.R[7] == 127 && cornerColors.B[7] == 127,
+                  "PPI interpolates through a real left/top corner", "");
+
+            var ring = new ZoneLayout(80, 40, 8, 0.1);
+            var oldBlur = new ZoneColors(8); var newBlur = new ZoneColors(8);
+            oldBlur.R[0] = newBlur.R[0] = 200;
+            Colors.SpatialRing(oldBlur, 0.5);
+            Colors.SpatialRing(newBlur, 0.5, ring);
+            Check(newBlur.R[7] == 50 && Colors.MeanDelta(oldBlur, newBlur) == 0,
+                  "full-edge blur retains the existing closed ring", "");
+            var ringColors = new ZoneColors(8);
+            ring.InterpolateSamples(new[] { 0, 4 }, new[] { 1020, 0, 0, 0, 0, 1020 }, 2,
+                                    ringColors.R, ringColors.G, ringColors.B);
+            Check(ringColors.R[7] == 191 && ringColors.B[7] == 63 && ringColors.R[4] == 0 && ringColors.B[4] == 255,
+                  "full-edge PPI interpolation wraps as before", "");
+            byte[] mapped = WledOutput.BuildDrgbMapped(extracted, 1, 1, 1, 0, 7, true, 8);
+            Check(mapped[2] == 255 && mapped[4] == 0 && mapped[23] == 0 && mapped[25] == 255,
+                  "bottom strip can map left-to-right with offset N-1 and reverse", "");
+            var disabled = new ZoneLayout(80, 40, 8, 0.1, ScreenEdges.None);
+            Check(disabled.Extract(image).Count == 0 && disabled.SampleZones(24).Length == 0,
+                  "all edges disabled produces no sampling zones", "runtime holds the WLED blackout");
         }
 
         static bool Throws(Action a)

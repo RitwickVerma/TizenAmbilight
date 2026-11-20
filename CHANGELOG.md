@@ -12,6 +12,12 @@ identifier.
   `cs_ve` and uses the first complete family (reported as `ppi.family` in telemetry). Verified on a 2023
   S90C (Tizen 8.0), where full-frame capture is blocked even with a partner certificate and the sampler
   is the only source.
+- Independent `edgeTop`, `edgeRight`, `edgeBottom` and `edgeLeft` settings for partial LED strips.
+  Enabled edges share all zones; all disabled holds the strip black. The plane, file and PPI paths
+  share the layout. Spatial blur and PPI interpolation respect missing edges, while the default
+  four-edge layout is unchanged.
+- Apps2Samsung catalog template: optional 0/1 fields for each screen edge, with all
+  edges enabled when omitted; the catalog checker covers all 16 combinations.
 
 ### Fixed (v7)
 - **Sampler smoothed every scene cut.** The rolling sampler re-measures only a couple of spots per frame,

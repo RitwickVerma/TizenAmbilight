@@ -38,7 +38,7 @@ namespace TizenAmbilight
             if (_ppiInitTryUtc != DateTime.MinValue && PpiCapture.InitError != null &&
                 (DateTime.UtcNow - _ppiInitTryUtc).TotalSeconds < 30) return false;
             _ppiInitTryUtc = DateTime.UtcNow;
-            string err = PpiCapture.Init(cfg.ZoneCount, cfg.BandFrac);
+            string err = PpiCapture.Init(cfg.ZoneCount, cfg.BandFrac, cfg.Edges);
             if (err != null) { L("ppi sampler NOT ready: " + err); return false; }
             L("ppi sampler ready: cond rc=" + PpiCapture.CondRc + " slots=" + PpiCapture.Slots +
               " block=" + PpiCapture.BlockW + "x" + PpiCapture.BlockH + " settle=" + PpiCapture.SleepMs +
