@@ -95,6 +95,20 @@ namespace TizenAmbilight
         public const int YBytes = PlaneW * PlaneH;      // 518400
         public const int CBytes = YBytes / 2;           // 259200, NV12 interleaved
 
+        /// <summary>True when the chroma plane is (near) all zero. Real video chroma centres on 128
+        /// (neutral), so a plane with no sample above 16 is an unfilled buffer, not a picture.
+        /// Strided, ~2k reads.</summary>
+        public static bool IsEmptyPlane(byte[] c)
+        {
+            if (c == null || c.Length == 0) return true;
+            // odd step so both interleaved U and V get sampled: a full-screen yellow drives U alone
+            // down to ~16, but its V stays well above neutral
+            int step = Math.Max(1, c.Length / 2048) | 1;
+            for (int i = 0; i < c.Length; i += step)
+                if (c[i] > 16) return false;
+            return true;
+        }
+
         const int StructBytes = 256;
 
         const int OffYSize = 0x00;
