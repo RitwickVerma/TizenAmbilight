@@ -59,7 +59,8 @@ that TV. Other models are untested, not known to fail.
 | 2026 | 10.0 | ❔ Untested on 2026 models |
 | 2022–2024 | 6.5–8.0 | ⚠️ One report: a 2023 S90C (`QE77S90CATXXH`, Tizen 8.0, partner certificate) runs the `tizen90` build, but full-frame capture is blocked by the firmware; it works on the hardware sampler only (12 spots), which needs release 1.0.2 (build v7) or later. Other models untested. |
 | 2021 | 6.0 | ❌ One report (QN90A, [#2](https://github.com/RitwickVerma/TizenAmbilight/issues/2)): starts only after retargeting to `tizen80`; the video-plane call exists with the documented layout but returns `rc=-95`. Was the build signed partner? Open question. |
-| 2020 and older | ≤ 5.5 | ❌ Unknown, probably not without porting work. Untested. |
+| 2020 | 5.5 | ✅ One report: a 2020 TU7000 (`UA55TU7000`, partner certificate) works after retargeting to `tizen60` (csproj `TargetFramework` and manifest `api-version` 5.5); the `tizen90` build is refused with install error [118,-4]. Full-frame video-plane capture at ~60 fps (`targetFps` 60), including HDMI sources and the TV's own Netflix/YouTube. The plane is SDR (`hdr` 0), 720x540 packed, with letterbox bars in it (`barRows` 1); it needs the 0x0 plane-size fix. |
+| 2019 and older | ≤ 5.0 | ❌ Unknown, probably not without porting work. Untested. |
 
 What the app needs from the TV:
 
@@ -265,8 +266,8 @@ Untested so far. The video plane carries what the TV decodes for display, so it 
 has only been verified with built-in apps. Reports welcome.
 
 **Does it work on Tizen 5 / 2019–2020 TVs?**
-Not as built. Those TVs ship an older .NET runtime and expose different capture libraries. See
-[Compatibility](#compatibility)
+Not as built. A 2020 TU7000 on Tizen 5.5 works after retargeting the build to `tizen60` (API 5.5) and
+signing with a partner certificate; older TVs are untested. See [Compatibility](#compatibility)
 
 **Does it need the internet or any account?**
 No. It talks to your WLED controller and, if you configure them, two optional helpers on your LAN.
