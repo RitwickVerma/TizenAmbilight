@@ -144,7 +144,7 @@ also does not automatically load the form from this repository.
 | **DRM fallback** (only used while the plane is DRM-withheld, or with `captureBackend` `ppi`) | | |
 | `ppiZones` | `24` | spots measured round the screen edge, 4-73. More = finer picture, slower per-spot refresh (24 is about 4-5 Hz, 8 is about 12-15 Hz on the reference TV). Also in the Apps2Samsung form as an optional field. |
 | `ppiSettleMs` | `-1` | wait between arming a measure slot and reading it. `-1` = the settle time your TV reports. A lower value raises the rate only if reads stay fresh; check with `pfresh`. |
-| `requestWidth` / `requestHeight` / `compressType` / `jpegQuality` | `640` / `360` / `0` / `90` | legacy file backend only |
+| `requestWidth` / `requestHeight` | `640` / `360` | legacy file backend only (always PNG) |
 
 `alpha` is applied **per frame**, not per unit of time, so its effective smoothing changes with the
 frame rate.

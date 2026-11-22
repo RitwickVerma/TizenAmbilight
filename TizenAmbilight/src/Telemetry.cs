@@ -14,7 +14,6 @@ namespace TizenAmbilight
         sealed class Stats
         {
             public long CaptureOk, CaptureFail, DecodeFail, Frames;
-            public long JpegFramesSkipped;      // captured a non-PNG format we cannot decode yet
             public long VideoPlaneFrames;       // frames delivered by the in-memory video-plane backend
             public long PpiFrames, PpiWindow;   // full sweeps delivered by the ppi_ve hardware sampler
             public long PpiSwitches;            // plane<->sampler handovers
@@ -77,7 +76,6 @@ namespace TizenAmbilight
                 { "capture_ok", st.CaptureOk },
                 { "capture_fail", st.CaptureFail },
                 { "decode_fail", st.DecodeFail },
-                { "frames_skipped_no_decoder", st.JpegFramesSkipped },
                 { "frames_decoded_total", st.Frames },
                 { "loop_exceptions", st.LoopExceptions },
                 { "consecutive_fail", st.ConsecutiveFails },

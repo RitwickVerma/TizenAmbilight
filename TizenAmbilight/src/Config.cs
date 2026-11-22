@@ -73,8 +73,7 @@ namespace TizenAmbilight
             public bool MapReverse;
             public int LedCount;        // physical LEDs to drive; LEDs past ZoneCount are sent black
             public bool TestPattern;    // send the 4-edge colour test instead of the ambilight
-            public int CompressType;
-            public int JpegQuality;
+            public int CompressType;    // always CaptureApi.CompressPng; kept so the report keeps compress_type
 
             public bool HasWled { get { return !string.IsNullOrEmpty(WledIp); } }
             public bool HasTelemetry { get { return !string.IsNullOrEmpty(Endpoint); } }
@@ -105,7 +104,6 @@ namespace TizenAmbilight
                     { "request_width", (long)RequestWidth },
                     { "request_height", (long)RequestHeight },
                     { "compress_type", (long)CompressType },
-                    { "jpeg_quality", (long)JpegQuality },
                 };
             }
         }
@@ -345,12 +343,8 @@ namespace TizenAmbilight
             c.RequestHeight = PrefInt("requestHeight", CaptureApi.RequestHeight);
             if (c.RequestHeight < 16) c.RequestHeight = 16;
             if (c.RequestHeight > 2160) c.RequestHeight = 2160;
-            c.CompressType = PrefInt("compressType", CaptureApi.CompressPng);
-            if (c.CompressType != CaptureApi.CompressPng && c.CompressType != CaptureApi.CompressJpeg)
-                c.CompressType = CaptureApi.CompressPng;
-            c.JpegQuality = PrefInt("jpegQuality", CaptureApi.JpegQuality);
-            if (c.JpegQuality < 1) c.JpegQuality = 1;
-            if (c.JpegQuality > 100) c.JpegQuality = 100;
+            // PNG is the only format the file backend decodes, so it is not a setting.
+            c.CompressType = CaptureApi.CompressPng;
             return c;
         }
 

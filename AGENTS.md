@@ -7,7 +7,7 @@ Build (needs .NET 8 SDK only; `Tizen.NET.Sdk/1.1.9` restored from NuGet, no Tize
 ```bash
 dotnet msbuild TizenAmbilight/TizenAmbilight.csproj -restore -t:Rebuild -p:Configuration=Release -v:m
 ```
-Output: `TizenAmbilight/bin/Release/tizen90/dev.ritwickverma.TizenAmbilight-1.0.0.tpk` (log prints `is signed with Default Certificates!`; that TPK installs on no retail TV until re-signed).
+Output: `TizenAmbilight/bin/Release/tizen90/dev.ritwickverma.TizenAmbilight-1.0.2.tpk` (log prints `is signed with Default Certificates!`; that TPK installs on no retail TV until re-signed).
 Settings: `TizenAmbilight/config.json` (gitignored, holds LAN addresses) is bundled as `res/config.json`; without it the committed template `config.example.json` ships instead. The owner's local `config.json` reproduces the pre-v5 defaults; never commit it.
 
 Helpers (host side, plain `python3`, stdlib only):
@@ -21,18 +21,18 @@ Signing/install/run on the TV (`tizen install`, `tizen run`) needs Tizen Studio 
 
 ## Test
 - Framework: custom console harness `decoder-selftest/` (`net8.0`, no xUnit/NUnit); exits non-zero on any FAIL. Prints `PASSED n  FAILED m`.
-- Test data is generated, then checked in: `gen_testdata.py` (hand-written PNG encoder, no deps) and `gen_jpeg_testdata.py` (needs **Pillow**; Pillow's decode is the reference). Output goes to `decoder-selftest/testdata/`; regenerating at HEAD left `git status` clean.
-- The harness compiles the *same* source files the app uses (`PngDecoder`, `JpegDecoder`, `PngSelfTest`, `ZoneEngine`, `WledOutput`, `Json`, `VideoPlaneCapture`, `ConfigFile`, `PowerState`) via `<Compile Include="../TizenAmbilight/src/...">`. Add a new shared file there or the harness will not see it.
+- Test data is generated, then checked in: `gen_testdata.py` (hand-written PNG encoder, no deps). Output goes to `decoder-selftest/testdata/`; regenerating at HEAD left `git status` clean.
+- The harness compiles the *same* source files the app uses (`PngDecoder`, `PngSelfTest`, `ZoneEngine`, `WledOutput`, `Json`, `VideoPlaneCapture`, `ConfigFile`, `PowerState`) via `<Compile Include="../TizenAmbilight/src/...">`. Add a new shared file there or the harness will not see it.
 - On-device self-check: `PngSelfTest.cs` runs at app start and reports PASS/FAIL in the startup telemetry.
 - No mocking framework. The Tizen/P-Invoke layer (`CaptureApi`, `VideoPlaneCapture` capture calls, the HTTP part of `PowerState`, `Preference`) is not unit tested.
 
 Canonical command:
 ```bash
 cd decoder-selftest
-python3 gen_testdata.py && python3 gen_jpeg_testdata.py
+python3 gen_testdata.py
 dotnet run --project DecoderSelfTest.csproj
 ```
-Expected: `PASSED 79   FAILED 0`.
+Expected: `PASSED 144   FAILED 0`.
 
 CI: `.gitlab-ci.yml` (lint job + one .NET build-and-test job; runs on the linked shared runner). The GitLab project push-mirrors every branch and tag to GitHub, where `.github/workflows/ci.yml` repeats the checks and `release.yml` publishes a GitHub Release with the TPK on a `vX.Y.Z` tag that must equal the manifest version. Apps2Samsung installs from that GitHub release.
 
@@ -51,7 +51,7 @@ CI: `.gitlab-ci.yml` (lint job + one .NET build-and-test job; runs on the linked
 | `TizenAmbilight/src/ZoneEngine.cs` | Perimeter zone layout, per-zone averaging, smoothing/tone `Colors` helpers. |
 | `TizenAmbilight/src/WledOutput.cs` | WLED DRGB UDP packet building/sending, blackout hold. |
 | `TizenAmbilight/src/PowerState.cs` | Reads the TV's own local power-state API (`powerStateUrl`); fails toward "on". |
-| `TizenAmbilight/src/PngDecoder.cs`, `JpegDecoder.cs` | First-party PNG and baseline-JPEG decoders (refuse CMYK/progressive/12-bit). |
+| `TizenAmbilight/src/PngDecoder.cs` | First-party PNG decoder (refuses bad signature, truncated input, 16-bit depth). |
 | `TizenAmbilight/src/Json.cs` | Minimal first-party JSON writer for telemetry. |
 | `TizenAmbilight/src/PngSelfTest.cs` | Embedded 8x8 PNG decode check run on the device. |
 | `decoder-selftest/SelfTestMain.cs` | Host harness `Main`; byte-compares decoders, zone layout, EMA, DRGB packet, JSON. |

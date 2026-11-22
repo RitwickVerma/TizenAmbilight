@@ -84,8 +84,8 @@ by the library's own `ret_c_pitch`.
 |---|---|---|---|
 | +0x00 | u32 | `app_type` (≤6) | 4 |
 | +0x04 | u32 | `capture_mode` (≤4) | 0, **the working mode**; 1 and 2 return `rc=1` and write nothing |
-| +0x08 | u32 | `compress_type` | 0 = PNG, 1 = JPEG |
-| +0x0c | u32 | `jpeg_quality` | 90 |
+| +0x08 | u32 | `compress_type` | 0 = PNG, the only format requested |
+| +0x0c | u32 | `jpeg_quality` | unused by PNG; written as the legacy value 90 so the request bytes match the build proven on the panel |
 | +0x10 | char* | `dir_path` (`access(W_OK)` checked) | the app's own data dir |
 | +0x14 | char* | `file_name` | any |
 | +0x18 | int | `width` (in/out) | requested; the library clamps it (floor 480×270) |
@@ -98,8 +98,7 @@ by the library's own `ret_c_pitch`.
 empty `ret_path` means there is nothing on screen (standby, or an unchanging UI); it does not mean the
 API is broken. Malformed input returns a clean `-1`, so a bad struct cannot crash the TV.
 
-The app decodes those files with its own first-party PNG decoder. A baseline JPEG decoder exists and
-is tested, but it is not wired into the loop.
+The app decodes those files with its own first-party PNG decoder.
 
 ---
 
@@ -328,7 +327,7 @@ WLED then reverts to its own stored colour, which is how an ambilight ends up gl
 | Output | WLED DRGB, direct | Hyperion / HyperHDR | WLED DDP or HyperHDR |
 | HDR | PQ decode + BT.2020→709 gamut map | n/a | not documented |
 | UI | none (config file, optional control URL) | TizenBrew module | TizenBrew module, calibration screen |
-| Tested on | one 2025 TV (Tizen 9) | Tizen 6.5+ | Tizen 6.5+ |
+| Tested on | one 2025 TV (Tizen 9 and 10) | Tizen 6.5+ | Tizen 6.5+ |
 
 Those projects support far more TVs today. TizenAmbilight trades that reach for reading the whole
 picture.

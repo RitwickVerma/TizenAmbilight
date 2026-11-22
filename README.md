@@ -27,7 +27,7 @@ phone's HDR recording to standard dynamic range, audio removed).*
   colours instead of the whole picture, and far slower. See [DRM content](#drm-content).
 
 > [!WARNING]
-> **Status: early, and tested on one TV.** It was developed on a 2025 Samsung S84F (Tizen 9). It relies
+> **Status: early, and tested on one TV.** It was developed on a 2025 Samsung S84F (Tizen 9, now also verified on Tizen 10). It relies
 > on an undocumented Samsung library that may be missing or different on other models and firmware.
 > If you try it on another TV, please [report what happened](#device-reports), whether it worked or not.
 
@@ -49,14 +49,15 @@ phone's HDR recording to standard dynamic range, audio removed).*
 
 ## Compatibility
 
-**Tested on exactly one TV: a 2025 Samsung S84F (Tizen 9.0).** Everything below that says "works" means
+**Tested on exactly one TV: a 2025 Samsung S84F, on Tizen 9.0 and, after Samsung's firmware update, Tizen 10.0.** Everything below that says "works" means
 that TV. Other models are untested, not known to fail.
 
 | Model year | Tizen | Status |
 |---|---|---|
 | 2025 | 9.0 | ✅ Works on the S84F (OLED, `QN77S84FAEXZA`). Other Tizen 9 models are likely to work but unconfirmed; one Q7F user reports capture is blocked unless the app is signed with a partner certificate ([#1](https://github.com/RitwickVerma/TizenAmbilight/issues/1)). |
-| 2026 | 10.0 | ❔ Untested |
-| 2022–2024 | 6.5–8.0 | ⚠️ One report: a 2023 S90C (`QE77S90CATXXH`, Tizen 8.0, partner certificate) runs the `tizen90` build, but full-frame capture is blocked by the firmware; it works on the hardware sampler only (12 spots), which needs v7 or later. Other models untested. |
+| 2025 on 10.0 firmware | 10.0 | ✅ Works on the same S84F after its Tizen 10 update: video-plane capture at ~19.5 fps, zero capture failures. The firmware update deletes sideloaded apps, so reinstall after updating. |
+| 2026 | 10.0 | ❔ Untested on 2026 models |
+| 2022–2024 | 6.5–8.0 | ⚠️ One report: a 2023 S90C (`QE77S90CATXXH`, Tizen 8.0, partner certificate) runs the `tizen90` build, but full-frame capture is blocked by the firmware; it works on the hardware sampler only (12 spots), which needs release 1.0.2 (build v7) or later. Other models untested. |
 | 2021 | 6.0 | ❌ One report (QN90A, [#2](https://github.com/RitwickVerma/TizenAmbilight/issues/2)): starts only after retargeting to `tizen80`; the video-plane call exists with the documented layout but returns `rc=-95`. Was the build signed partner? Open question. |
 | 2020 and older | ≤ 5.5 | ❌ Unknown, probably not without porting work. Untested. |
 
