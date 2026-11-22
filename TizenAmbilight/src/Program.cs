@@ -74,7 +74,7 @@ namespace TizenAmbilight
         public const string AppId = "dev.ritwickverma.TizenAmbilight";
         // Bump this whenever behaviour changes. It sat at "v3" through the HDR decode, the BT.2020->709
         // gamut map and the adaptive tone curve, which made build identification useless in telemetry.
-        public const string Version = "v7";
+        public const string Version = "v8";
 
         // ---- failure handling ----
         const int FailSleepMs = 200;                     // pause after a frame-less iteration
@@ -131,11 +131,10 @@ namespace TizenAmbilight
         /// or refreshes them.
         /// </summary>
         public const string RecordedMeasurement =
-            "recorded: 640x360 PNG capture ~89ms, JPEG ~12ms; PNG end-to-end ~8.9fps";
+            "recorded: 640x360 PNG capture ~89ms; PNG end-to-end ~8.9fps";
 
-        /// <summary>Set once at startup: the capture file name (and extension) follows
-        /// compress_type, so a JPEG request never writes a file called ".png".</summary>
-        static string CaptureFileName = "amb.png";
+        /// <summary>The file backend's capture file name. PNG is the only format requested.</summary>
+        const string CaptureFileName = "amb.png";
 
         static Config _cfg;   // set once at startup; read by the shutdown hook
 
@@ -166,7 +165,6 @@ namespace TizenAmbilight
         {
             Config cfg = ReadConfig();
             _cfg = cfg;
-            CaptureFileName = cfg.CompressType == CaptureApi.CompressJpeg ? "amb.jpg" : "amb.png";
 
             L("=== " + AppId + " " + Version + " starting ===");
             L(RecordedMeasurement);
@@ -182,8 +180,7 @@ namespace TizenAmbilight
             L("outputEnabled=" + cfg.OutputEnabled + ", zones=" + cfg.ZoneCount +
               ", edges=" + cfg.Edges + ", alpha=" + cfg.Alpha + ", bandFrac=" + cfg.BandFrac);
             L("main-loop capture request " + cfg.RequestWidth + "x" + cfg.RequestHeight +
-              " compress_type=" + cfg.CompressType +
-              (cfg.CompressType == CaptureApi.CompressJpeg ? " (JPEG q" + cfg.JpegQuality + ")" : " (PNG)"));
+              " compress_type=" + cfg.CompressType + " (PNG)");
             L("power-state probe: GET " + cfg.PowerUrl + " cached " + PowerPollCacheMs +
               " ms (timeout " + PowerPollTimeoutSec + " s); panel standby => capture SKIPPED, sleep " +
               OffSleepMs + " ms; probe failure => ASSUME ON (fallback)");
@@ -738,7 +735,7 @@ namespace TizenAmbilight
                     var csw = Stopwatch.StartNew();
                     CaptureResult res = CaptureApi.Capture(captureDir, CaptureFileName,
                                                            cfg.RequestWidth, cfg.RequestHeight,
-                                                           cfg.CompressType, cfg.JpegQuality);
+                                                           cfg.CompressType);
                     csw.Stop();
                     capMs = csw.Elapsed.TotalMilliseconds;
 
@@ -766,25 +763,6 @@ namespace TizenAmbilight
                     st.LastRetPath = res.RetPath;
                     st.LastFileBytes = res.FileBytes;
                     st.FrameBytes = res.FileBytes;
-
-                    // ---- 1b. a non-PNG capture has no decoder wired into this loop. It is reported
-                    //          rather than spammed as a decode failure; compressType=0 restores the
-                    //          full PNG pipeline.
-                    if (cfg.CompressType != CaptureApi.CompressPng)
-                    {
-                        st.JpegFramesSkipped++;
-                        st.ConsecutiveFails++;
-                        if (st.JpegFramesSkipped == 1 || st.JpegFramesSkipped % 25 == 0)
-                            L("compressType=" + cfg.CompressType + ": no decoder wired into the loop for this " +
-                              "format — " + st.JpegFramesSkipped + " frame(s) skipped. " +
-                              "Set compressType=0 to run the PNG pipeline.");
-                        MaybePost(cfg, captureDir, layout, smoothed, st);
-                        MaybeBlackout(cfg, st);
-                        int failSleepMs = BackoffSleep(st);
-                        BackoffAdvance(st);
-                        Thread.Sleep(failSleepMs);
-                        continue;
-                    }
 
                     // ---- 2. decode the PNG ourselves ----
                     var dsw = Stopwatch.StartNew();

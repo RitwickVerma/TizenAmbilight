@@ -225,244 +225,9 @@ namespace DecoderSelfTest
                       d.ToString("0.0000"));
             }
 
-            // ============================================================ 7. JPEG decoder (v3)
-            // v3's only new risk is the baseline JPEG decoder. It is proved here against
-            // libjpeg-turbo by way of Pillow: gen_jpeg_testdata.py encodes real JPEGs and stores
-            // PILLOW'S OWN decode as the reference, so the C# decoder is compared to a foreign
-            // implementation's pixels, never to a hand-written expectation. Every case reports
-            // its maximum per-channel error; only a re-encode could hide a bug, and nothing here
-            // re-encodes.
+            // ============================================================ 7. zone -> LED mapping
             Console.WriteLine();
-            Console.WriteLine("[7] baseline JPEG decoder vs Pillow (libjpeg-turbo)");
-            {
-                string jmPath = Path.Combine(dataDir, "jpeg_manifest.json");
-                Check(File.Exists(jmPath), "jpeg_manifest.json present", jmPath);
-                List<Dictionary<string, string>> jcases = ParseCases(File.ReadAllText(jmPath));
-                Check(jcases.Count >= 10, "jpeg manifest lists cases", jcases.Count + " cases");
-
-                // Gate values. MEASURED worst case across all 12 cases is 3 (see the per-case
-                // lines above); the gate is one LSB above that so a different libjpeg-turbo
-                // rounding build cannot fail the suite, while a genuine decoder bug (wrong zigzag,
-                // wrong dequant, wrong DC prediction, wrong edge handling, wrong upsampling) is
-                // orders of magnitude too big to slip through.
-                const int MaxErrGate = 4;          // per-channel maximum
-                const double MeanErrGate = 0.5;    // per-channel mean
-                int worstMax = 0;
-                string worstCase = "";
-                long fullMs = 0;
-
-                foreach (Dictionary<string, string> jc in jcases)
-                {
-                    string nm = jc["name"];
-                    string jpg = Path.Combine(dataDir, jc["file"]);
-                    string rpath = Path.Combine(dataDir, jc["reference"]);
-                    if (!File.Exists(jpg) || !File.Exists(rpath))
-                    {
-                        Check(false, nm, "missing jpg or reference rgba");
-                        continue;
-                    }
-                    byte[] expected = File.ReadAllBytes(rpath);
-                    int ew = int.Parse(jc["width"]), eh = int.Parse(jc["height"]);
-                    if (expected.Length != ew * eh * 4)
-                    {
-                        Check(false, nm, "reference is " + expected.Length + " bytes, expected " + (ew * eh * 4));
-                        continue;
-                    }
-
-                    var sw = Stopwatch.StartNew();
-                    PngImage img;
-                    try { img = JpegDecoder.DecodeFile(jpg); }
-                    catch (Exception e)
-                    {
-                        Check(false, nm, "decode threw " + e.GetType().Name + ": " + e.Message);
-                        continue;
-                    }
-                    sw.Stop();
-                    fullMs += (long)sw.Elapsed.TotalMilliseconds;
-
-                    string desc = JpegDecoder.LastInfo != null ? JpegDecoder.LastInfo.Describe() : "";
-
-                    if (img.Width != ew || img.Height != eh)
-                    {
-                        Check(false, nm, "decoded " + img.Width + "x" + img.Height + ", expected " + ew + "x" + eh);
-                        continue;
-                    }
-
-                    int maxErr = 0, firstBad = -1;
-                    long sum = 0;
-                    long chan = (long)ew * eh * 3;
-                    for (int i = 0; i < expected.Length; i++)
-                    {
-                        if ((i & 3) == 3)
-                        {
-                            if (img.Rgba[i] != 255) { maxErr = 256; firstBad = i; break; }
-                            continue;
-                        }
-                        int d = Math.Abs(img.Rgba[i] - expected[i]);
-                        if (d > maxErr) maxErr = d;
-                        if (d > 0 && firstBad < 0) firstBad = i;
-                        sum += d;
-                    }
-                    double mean = chan > 0 ? (double)sum / chan : 0.0;
-                    if (maxErr > worstMax) { worstMax = maxErr; worstCase = nm; }
-
-                    // Optional forensic dump: JPEG_DUMP=1 writes our decode next to Pillow's so a
-                    // disagreement can be localised in a second tool instead of guessed at.
-                    if (Environment.GetEnvironmentVariable("JPEG_DUMP") == "1")
-                        File.WriteAllBytes(Path.Combine(dataDir, nm + ".ours.rgba"), img.Rgba);
-
-                    bool ok = maxErr <= MaxErrGate && mean <= MeanErrGate;
-                    string detail = "max=" + maxErr + " mean=" + mean.ToString("0.0000") +
-                                    (maxErr >= 0 && firstBad >= 0
-                                        ? " first_diff@" + firstBad + " got " + img.Rgba[firstBad] +
-                                          " want " + expected[firstBad]
-                                        : " (bit-exact)") +
-                                    "  " + sw.Elapsed.TotalMilliseconds.ToString("0.00") + "ms  " + desc;
-                    Check(ok, nm, detail);
-                }
-
-                Check(worstMax <= MaxErrGate, "worst-case per-channel error across ALL jpeg cases",
-                      "max=" + worstMax + " on " + worstCase + " (gate " + MaxErrGate + ")");
-                Console.WriteLine("      max per-channel error vs Pillow: " + worstMax +
-                                  " (worst case " + worstCase + "); total full-decode time for all cases " +
-                                  fullMs + " ms");
-
-                // ---- the fast path: zone colours must be BIT-IDENTICAL to the full decode ----
-                // JpegOptions.ForBorder skips the IDCT only for blocks that lie entirely outside
-                // the border ring ZoneEngine samples, so this is not a tolerance test — it must
-                // come out exactly equal, on every case, or the optimisation is not shippable.
-                // The DC-only whole-frame variant is reported separately because it IS an
-                // approximation and is NOT the mode that ships.
-                Console.WriteLine();
-                Console.WriteLine("[8] JPEG fast path (skipped interior IDCT) vs full decode, by zone colour");
-                {
-                    int fastCases = 0, fastBad = 0, worstDcMax = 0;
-                    double worstDcMean = 0;
-                    long ringFastMs = 0, fullDecodeMs = 0, blocksFull = 0, blocksSkipped = 0;
-                    int oddExact = 0;
-
-                    foreach (Dictionary<string, string> jc in jcases)
-                    {
-                        string jpg = Path.Combine(dataDir, jc["file"]);
-                        if (!File.Exists(jpg)) continue;
-
-                        var fsw = Stopwatch.StartNew();
-                        PngImage full = JpegDecoder.DecodeFile(jpg);
-                        fsw.Stop();
-                        fullDecodeMs += (long)fsw.Elapsed.TotalMilliseconds;
-                        var jlayout = new ZoneLayout(full.Width, full.Height, 73, 0.08);
-                        ZoneColors zFull = jlayout.Extract(full);
-
-                        var opt = JpegOptions.ForBorder(jlayout.BandX, jlayout.BandY);
-                        double best = double.MaxValue;
-                        PngImage fast = null;
-                        for (int rep = 0; rep < 3; rep++)
-                        {
-                            var sw = Stopwatch.StartNew();
-                            PngImage f = JpegDecoder.DecodeFile(jpg, opt);
-                            sw.Stop();
-                            if (sw.Elapsed.TotalMilliseconds < best) { best = sw.Elapsed.TotalMilliseconds; fast = f; }
-                        }
-                        JpegFrameInfo fi = JpegDecoder.LastInfo;
-                        ZoneColors zFast = jlayout.Extract(fast);
-
-                        int dmax = 0;
-                        for (int i = 0; i < zFull.Count; i++)
-                        {
-                            dmax = Math.Max(dmax, Math.Abs(zFull.R[i] - zFast.R[i]));
-                            dmax = Math.Max(dmax, Math.Abs(zFull.G[i] - zFast.G[i]));
-                            dmax = Math.Max(dmax, Math.Abs(zFull.B[i] - zFast.B[i]));
-                        }
-                        fastCases++;
-                        if (dmax == 0) oddExact++; else fastBad++;
-                        if (fi != null) { blocksFull += fi.BlocksDecoded; blocksSkipped += fi.BlocksSkipped; }
-                        ringFastMs += (long)best;
-
-                        // whole-frame DC-only: an approximation, measured rather than gated
-                        PngImage dcIm = JpegDecoder.DecodeFile(jpg, JpegOptions.ForBorder(0, 0));
-                        ZoneColors zDc = jlayout.Extract(dcIm);
-                        int dmaxDc = 0;
-                        long sDc = 0;
-                        for (int i = 0; i < zFull.Count; i++)
-                        {
-                            int dr = Math.Abs(zFull.R[i] - zDc.R[i]);
-                            int dg = Math.Abs(zFull.G[i] - zDc.G[i]);
-                            int db = Math.Abs(zFull.B[i] - zDc.B[i]);
-                            dmaxDc = Math.Max(dmaxDc, Math.Max(dr, Math.Max(dg, db)));
-                            sDc += dr + dg + db;
-                        }
-                        double meanDc = (double)sDc / (zFull.Count * 3);
-                        if (dmaxDc > worstDcMax) { worstDcMax = dmaxDc; worstDcMean = meanDc; }
-
-                        Console.WriteLine("      " + jc["name"].PadRight(28) +
-                                          " ring " + jlayout.BandX + "x" + jlayout.BandY +
-                                          ": zone delta max=" + dmax +
-                                          "  fast=" + best.ToString("0.0") + "ms" +
-                                          "  (idct " + (fi != null ? fi.BlocksDecoded : -1) +
-                                          ", dc-only " + (fi != null ? fi.BlocksSkipped : -1) + ")");
-                    }
-
-                    Check(fastCases > 0 && fastBad == 0,
-                          "border-ring fast path: zone colours identical to a full decode on EVERY case",
-                          oddExact + "/" + fastCases + " cases exact (max zone delta 0 across 73 zones)");
-                    Check(blocksSkipped > 0,
-                          "fast path really skips interior IDCT work (not a silent full decode)",
-                          blocksFull + " full-idct / " + blocksSkipped + " dc-only blocks total");
-                    Console.WriteLine("      whole-frame DC-only (worst case, NOT the shipped mode): " +
-                                      "max zone delta " + worstDcMax + ", mean " + worstDcMean.ToString("0.00"));
-                    Console.WriteLine("      totals: " + blocksFull + " blocks full-IDCT vs " +
-                                      blocksSkipped + " DC-only for the ring (" +
-                                      (100.0 * blocksSkipped / Math.Max(1.0, blocksFull + blocksSkipped)).ToString("0.0") +
-                                      "% of blocks skipped); ring fast-decode " + ringFastMs +
-                                      " ms vs full decode " + fullDecodeMs + " ms over " + fastCases + " cases");
-                }
-
-                // ---- must-refuse cases ----
-                Console.WriteLine();
-                Console.WriteLine("[9] JPEG decoder refuses what it does not implement");
-                {
-                    string cmyk = Path.Combine(dataDir, "jpeg_cmyk_32x32.jpg");
-                    Check(File.Exists(cmyk), "4-component CMYK test file present", cmyk);
-                    Check(Throws(() => JpegDecoder.DecodeFile(cmyk)),
-                          "4-component CMYK JPEG refused (not silently mis-decoded)",
-                          "jpeg_cmyk_32x32.jpg");
-
-                    string prog = Path.Combine(dataDir, "probe_progressive_300x200.jpg");
-                    Check(File.Exists(prog), "progressive test file present", prog);
-                    Check(Throws(() => JpegDecoder.DecodeFile(prog)),
-                          "progressive (SOF2) JPEG refused", "probe_progressive_300x200.jpg");
-
-                    string png = Path.Combine(dataDir, "probe_real.png");
-                    Check(Throws(() => JpegDecoder.DecodeFile(png)),
-                          "a PNG handed to the JPEG decoder is refused", "probe_real.png");
-
-                    Check(Throws(() => JpegDecoder.Decode(new byte[] { 0xFF, 0xD8, 0x00 })),
-                          "truncated JPEG refused", "3 bytes");
-
-                    byte[] full = File.ReadAllBytes(Path.Combine(dataDir, "jpeg_q90_480x270.jpg"));
-                    byte[] cut = new byte[full.Length / 3];
-                    Array.Copy(full, cut, cut.Length);
-                    Check(Throws(() => JpegDecoder.Decode(cut)),
-                          "JPEG truncated to a third refused", cut.Length + " of " + full.Length + " bytes");
-
-                    byte[] noSof = (byte[])full.Clone();
-                    // corrupt the SOF0 precision byte so the frame is no longer 8-bit baseline
-                    for (int i = 2; i < noSof.Length - 4; i++)
-                    {
-                        if (noSof[i] == 0xFF && noSof[i + 1] == 0xC0)
-                        {
-                            noSof[i + 4] = 12;   // precision 12
-                            break;
-                        }
-                    }
-                    Check(Throws(() => JpegDecoder.Decode(noSof)),
-                          "12-bit precision (SOF0 precision=12) refused", "precision patched");
-                }
-            }
-
-            // ============================================================ 10. zone -> LED mapping
-            Console.WriteLine();
-            Console.WriteLine("[10] DRGB zone -> LED mapping (offset, reverse, black tail)");
+            Console.WriteLine("[7] DRGB zone -> LED mapping (offset, reverse, black tail)");
             {
                 var z = new ZoneColors(10);
                 for (int i = 0; i < 10; i++) { z.R[i] = (byte)(10 + i); z.G[i] = (byte)(10 + i); z.B[i] = (byte)(10 + i); }
@@ -484,9 +249,9 @@ namespace DecoderSelfTest
                       (2 + WledOutput.MaxDrgbLeds * 3).ToString());
             }
 
-            // ============================================================ 11. config.json
+            // ============================================================ 8. config.json
             Console.WriteLine();
-            Console.WriteLine("[11] config.json parser");
+            Console.WriteLine("[8] config.json parser");
             {
                 var c = ConfigFile.Parse("\uFEFF{ \"wledIp\": \"10.0.0.5\", \"ledCount\": 120, \"hdr\": false,\n" +
                                          " \"gamma\": \"1.3\", \"_comment\": \"x\", \"esc\": \"a\\\"b\\u0041\" }");
@@ -524,9 +289,9 @@ namespace DecoderSelfTest
                       "malformed file is reported and ignored as a whole", ConfigFile.Source);
             }
 
-            // ============================================================ 12. TV power-state parsing
+            // ============================================================ 9. TV power-state parsing
             Console.WriteLine();
-            Console.WriteLine("[12] TV local-API PowerState extraction");
+            Console.WriteLine("[9] TV local-API PowerState extraction");
             {
                 Check(PowerStateProbe.ExtractStringValue("{\"device\":{\"PowerState\": \"standby\"}}", "PowerState") == "standby",
                       "nested PowerState string found", "");
@@ -546,7 +311,7 @@ namespace DecoderSelfTest
 
         static void TestScreenEdges()
         {
-            Console.WriteLine("[13] configurable screen edges and open-strip topology");
+            Console.WriteLine("[10] configurable screen edges and open-strip topology");
             string[] names = { "top", "right", "bottom", "left" };
             foreach (int total in new[] { 4, 5, 73, 120, 490 })
             {
@@ -662,53 +427,6 @@ namespace DecoderSelfTest
         {
             try { a(); return false; }
             catch { return true; }
-        }
-
-        /// <summary>Pull the {name, file, reference, width, height, bytes} records out of a test
-        /// manifest. The generator writes one flat object per case with those keys first, followed
-        /// by nested objects, so a first-hit scan over each {...} body is exact and does not need a
-        /// JSON library in the harness.</summary>
-        static List<Dictionary<string, string>> ParseCases(string json)
-        {
-            var list = new List<Dictionary<string, string>>();
-            if (json == null) return list;
-            int i = json.IndexOf("\"cases\"", StringComparison.Ordinal);
-            if (i < 0) i = 0;
-            string[] keys = { "name", "file", "reference", "width", "height", "bytes" };
-            while (true)
-            {
-                int a = json.IndexOf('{', i);
-                if (a < 0) break;
-                int b = json.IndexOf('}', a);
-                if (b < 0) break;
-                string body = json.Substring(a + 1, b - a - 1);
-                var d = new Dictionary<string, string>();
-                foreach (string key in keys)
-                {
-                    int k = body.IndexOf("\"" + key + "\"", StringComparison.Ordinal);
-                    if (k < 0) continue;
-                    int c = body.IndexOf(':', k);
-                    if (c < 0) continue;
-                    c++;
-                    while (c < body.Length && body[c] == ' ') c++;
-                    if (c < body.Length && body[c] == '"')
-                    {
-                        int e = body.IndexOf('"', c + 1);
-                        if (e < 0) continue;
-                        d[key] = body.Substring(c + 1, e - c - 1);
-                    }
-                    else
-                    {
-                        int e = c;
-                        while (e < body.Length && (char.IsDigit(body[e]) || body[e] == '-')) e++;
-                        d[key] = body.Substring(c, e - c);
-                    }
-                }
-                if (d.ContainsKey("name")) list.Add(d);
-                i = b + 1;
-                if (i >= json.Length) break;
-            }
-            return list;
         }
 
         static PngImage SolidImage(int w, int h, byte r, byte g, byte b)

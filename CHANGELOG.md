@@ -6,7 +6,13 @@ identifier.
 
 ## [Unreleased]
 
-### Added (v7)
+## [1.0.2] — 2026-11-21 (build v8)
+
+### Removed
+- Removed the unused JPEG capture path and its decoder (PNG is the only format requested; the +0x0c
+  request field keeps its legacy value 90).
+
+### Added
 - **Tizen 8 sampler.** Tizen 8 firmware exports the RGB-measure API as `ve_*` instead of `ppi_ve_*`, so
   the sampler found nothing and the app had no source on those TVs. It now tries `ppi_ve`, `ve` and
   `cs_ve` and uses the first complete family (reported as `ppi.family` in telemetry). Verified on a 2023
@@ -19,19 +25,21 @@ identifier.
 - Apps2Samsung catalog template: optional 0/1 fields for each screen edge, with all
   edges enabled when omitted; the catalog checker covers all 16 combinations.
 
-### Fixed (v7)
+### Fixed
 - **Sampler smoothed every scene cut.** The rolling sampler re-measures only a couple of spots per frame,
   so the frame-wide mean delta never crossed `alphaCut` and the fast alpha never engaged. On sampler
   frames the slow/fast choice is now made per zone, so each spot snaps to a cut when it is re-measured.
   The video-plane path is unchanged.
-
-### Fixed
 - Docs: signing needs a **partner**-level certificate. A public certificate installs and starts the app,
   but Tizen blocks the capture libraries (`Operation not permitted`). Reported in #1; the docs
   previously said public was enough.
 - Compatibility table: 2021 / Tizen 6.0 report (#2).
 - README: TizenAmbilight is now listed in the Apps2Samsung community catalog; install steps
   updated (was "catalog entry pending").
+
+### Verified
+- The S84F runs on Samsung's Tizen 10 firmware update: video-plane capture at ~19.5 fps with zero
+  failures. The update deletes sideloaded apps, so reinstall after a firmware update.
 
 ## [1.0.0] — 2026-10-22 (build v6)
 

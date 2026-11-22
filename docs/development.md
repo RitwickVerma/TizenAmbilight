@@ -34,7 +34,7 @@ podman run --rm -v "$PWD":/src:Z -w /src mcr.microsoft.com/dotnet/sdk:8.0 \
   dotnet msbuild TizenAmbilight/TizenAmbilight.csproj -restore -t:Rebuild -p:Configuration=Release
 ```
 
-The project has **zero NuGet dependencies** by design. The PNG and baseline-JPEG decoders, the JSON
+The project has **zero NuGet dependencies** by design. The PNG decoder, the JSON
 reader and writer, and the capture P/Invoke are all first-party code. Keep it that way.
 
 ## Sign and install with your own certificate
@@ -61,8 +61,8 @@ To do it yourself:
 
    ```bash
    cd TizenAmbilight/bin/Release/tizen90
-   tizen package -t tpk -s <your-profile> -- dev.ritwickverma.TizenAmbilight-1.0.0.tpk
-   tizen install -n dev.ritwickverma.TizenAmbilight-1.0.0.tpk -t <device-name>
+   tizen package -t tpk -s <your-profile> -- dev.ritwickverma.TizenAmbilight-1.0.2.tpk
+   tizen install -n dev.ritwickverma.TizenAmbilight-1.0.2.tpk -t <device-name>
    ```
 
    Read [Updating safely](../README.md#updating-safely) before installing over a running copy.
@@ -86,18 +86,16 @@ and checks them on the host:
 dotnet run --project decoder-selftest/DecoderSelfTest.csproj     # ends "PASSED n   FAILED 0"
 ```
 
-* PNG decoding is byte-compared against hand-written PNGs, one per scanline filter type.
-* JPEG decoding is compared against real JPEGs encoded by Pillow, with **libjpeg-turbo's** decode as the
-  reference, across 4:4:4 / 4:2:2 / 4:2:0, grayscale, restart markers and odd dimensions (worst
-  per-channel error 3/255). Both decoders must **refuse** what they do not support (CMYK, progressive,
-  12-bit, truncated input) rather than decode it wrongly.
+* PNG decoding is byte-compared against hand-written PNGs, one per scanline filter type. The decoder
+  must **refuse** what it does not support (bad signature, truncated input, 16-bit depth) rather than
+  decode it wrongly.
 * Zone layout, EMA arithmetic, DRGB packets and LED mapping, `config.json` parsing and power-state
   extraction are covered as well.
 
-The test data is generated, then checked in. To regenerate it (the JPEG cases need Pillow):
+The test data is generated, then checked in. To regenerate it (no dependencies):
 
 ```bash
-cd decoder-selftest && python3 gen_testdata.py && python3 gen_jpeg_testdata.py
+cd decoder-selftest && python3 gen_testdata.py
 ```
 
 A new shared source file must be added to `DecoderSelfTest.csproj` with `<Compile Include=...>`, or the
@@ -144,7 +142,7 @@ ffmpeg -f rawvideo -pix_fmt nv12 -s 960x540 -i /tmp/f.nv12 -y /tmp/f.png
 | `TizenAmbilight/src/ZoneEngine.cs` | zone layout, per-zone averaging, smoothing helpers |
 | `TizenAmbilight/src/WledOutput.cs` | DRGB packet building, mapping, tone LUT, UDP send |
 | `TizenAmbilight/src/PowerState.cs` | TV local-API power probe |
-| `TizenAmbilight/src/PngDecoder.cs`, `JpegDecoder.cs`, `Json.cs`, `PngSelfTest.cs` | first-party codecs and checks |
+| `TizenAmbilight/src/PngDecoder.cs`, `Json.cs`, `PngSelfTest.cs` | first-party codecs and checks |
 | `decoder-selftest/` | host test harness and its generated test data |
 | `tools/` | control server, telemetry collector, secret scanner, catalog-entry check |
 | `packaging/apps2samsung/` | the tizen-community-packages catalog entry |

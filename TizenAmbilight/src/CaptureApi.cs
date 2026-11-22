@@ -52,7 +52,7 @@ namespace TizenAmbilight
     ///     +0x00 u32  app_type      (validated &lt;= 6)   -> 4
     ///     +0x04 u32  capture_mode  (validated &lt;= 4)   -> 0
     ///     +0x08 u32  compress_type (0 = PNG)          -> 0
-    ///     +0x0c u32  jpeg_quality                      -> 90
+    ///     +0x0c u32  jpeg_quality  (unused by PNG)    -> 90, LegacyQualityField (never 0)
     ///     +0x10 char* dir_path      (access(dir,W_OK))
     ///     +0x14 char* file_name
     ///     +0x18 int  width   (in/out, clamped in place)
@@ -89,17 +89,18 @@ namespace TizenAmbilight
         public const int AppType = 4;
         public const int CaptureMode = 0;
         public const int CompressType = 0;   // PNG
-        public const int JpegQuality = 90;
         public const int CompressPng = 0;
-        public const int CompressJpeg = 1;
+        // +0x0c (jpeg_quality) is unused by PNG, but it is still written, and written as 90: that is
+        // the value every build proven on the panel sent (the old code defaulted it to 90 and clamped
+        // it to 1..100, so 0 was never sent), and a library that range-validates the field could
+        // reject 0. Keep the request bytes identical: never write 0 here, never drop the write.
+        public const int LegacyQualityField = 90;
 
         // ---- the defaults the main loop requests ----
         // 640x360 + PNG is the shipped default because the PNG decoder is on-device verified and
         // that pair is the one with a recorded end-to-end number (~8.9 fps). The requested size IS
         // a lever (1280x720 measured ~171 ms capture, 640x360 ~89 ms) and the library floors its
-        // output at 480x270. compress_type=1 (JPEG) is much cheaper in the CAPTURE CALL alone
-        // (~12 ms, ~15x), but end to end the saving is far smaller (~2.6x, measured), so it stays
-        // opt-in via the compressType preference until that gap is addressed.
+        // output at 480x270. PNG (compress_type=0) is the only format this app requests.
         public const int RequestWidth = 640;
         public const int RequestHeight = 360;
 
@@ -186,13 +187,12 @@ namespace TizenAmbilight
             return s ?? "";
         }
 
-        /// <summary>Make ONE capture call: compress_type and jpeg quality are parameters so the
-        /// preference can steer the call, and so compress_type 0 (PNG) can be compared against 1
-        /// (JPEG) through this same native entry point. This is the ONLY entry point used. Every
+        /// <summary>Make ONE capture call. The app always passes compressType = CompressPng; the
+        /// +0x0c field is always LegacyQualityField (see there). This is the ONLY entry point used. Every
         /// OUT field the library writes is read back before the buffers are freed, even when rc is
         /// negative. Never throws.</summary>
         public static CaptureResult Capture(string dirPath, string fileName, int width, int height,
-                                            int compressType, int jpegQuality)
+                                            int compressType)
         {
             var res = new CaptureResult();
             IntPtr req = IntPtr.Zero, dstr = IntPtr.Zero, nstr = IntPtr.Zero;
@@ -221,7 +221,7 @@ namespace TizenAmbilight
                 Marshal.WriteInt32(req, OffAppType, AppType);
                 Marshal.WriteInt32(req, OffMode, CaptureMode);
                 Marshal.WriteInt32(req, OffCompress, compressType);
-                Marshal.WriteInt32(req, OffQuality, jpegQuality);
+                Marshal.WriteInt32(req, OffQuality, LegacyQualityField);   // never 0, see LegacyQualityField
                 Marshal.WriteIntPtr(req, OffDir, dstr);
                 Marshal.WriteIntPtr(req, OffName, nstr);
                 Marshal.WriteInt32(req, OffWidth, width);
