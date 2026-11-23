@@ -6,6 +6,24 @@ identifier.
 
 ## [Unreleased]
 
+### Added
+- **Full-frame capture on Tizen 8.** On the S90C, `libvideo-capture` answered `rc=-95` because its
+  implementation `libvideo-capture-impl-sec.so` failed to load: its `DT_NEEDED` `libtzcapturec.so` is
+  `EPERM` for a sideloaded app. That library is used only for protected content; normal capture is plain
+  DRM ioctls. The app now ships a 1.6 KB stub of that soname (`res/libtzcapturec.so`, source in
+  `TizenAmbilight/native/`) and loads it `RTLD_GLOBAL` before `impl-sec`, only when the system library is
+  refused. Measured on a QE77S90C: `rc=0`, 960x540 NV12, ~33 ms per capture. The stub fails every call,
+  so protected content still falls back to the sampler. Telemetry `tv` reports `preload=`.
+
+### Fixed
+- **HDR lost about two thirds of its saturation.** The HDR decode scaled R'G'B' by one luma factor in the
+  PQ code domain and then treated the result as gamma-2.4 encoded. A saturated colour's PQ codes sit close
+  together, so on an S90C (PC HDMI input, HDR desktop) pure red reached the strip as 135/66/42 and blue as
+  54/34/93. Each channel now goes through the PQ EOTF, BT.2020 -> 709 in linear light, hue-preserving scale
+  above reference white, gamma 2.2 out: red 247/23/2, blue 49/20/255 on the same patches. The tone curve
+  stays luma-only. Token `hdrlin=0` restores the old path. Telemetry gains `plane_yuv` (raw zone-mean
+  Y/U/V, for fitting against test patches); harness section [11] checks measured patches.
+
 ## [1.0.2] — 2026-11-21 (build v8)
 
 ### Removed

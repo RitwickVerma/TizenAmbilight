@@ -32,7 +32,7 @@ cd decoder-selftest
 python3 gen_testdata.py
 dotnet run --project DecoderSelfTest.csproj
 ```
-Expected: `PASSED 144   FAILED 0`.
+Expected: `PASSED 151   FAILED 0`.
 
 CI: `.gitlab-ci.yml` (lint job + one .NET build-and-test job; runs on the linked shared runner). The GitLab project push-mirrors every branch and tag to GitHub, where `.github/workflows/ci.yml` repeats the checks and `release.yml` publishes a GitHub Release with the TPK on a `vX.Y.Z` tag that must equal the manifest version. Apps2Samsung installs from that GitHub release.
 
@@ -47,6 +47,7 @@ CI: `.gitlab-ci.yml` (lint job + one .NET build-and-test job; runs on the linked
 | `TizenAmbilight/src/Lifecycle.cs` | Shutdown, log flush, blackout hold. |
 | `TizenAmbilight/src/Telemetry.cs` | `Stats` and the report builders. |
 | `TizenAmbilight/src/VideoPlaneCapture.cs` | Default backend: `dlopen`s `libvideo-capture`, fills NV12 buffers, YUV to RGB with HDR/gamut handling. |
+| `TizenAmbilight/native/` | Source + `build.sh` of the Tizen 8 `libtzcapturec.so` stub; the built `res/libtzcapturec.so` is committed. |
 | `TizenAmbilight/src/CaptureApi.cs` | Legacy file backend: P/Invoke of `dc_request_capture_to_file_sync` with the 296-byte request struct. |
 | `TizenAmbilight/src/ZoneEngine.cs` | Perimeter zone layout, per-zone averaging, smoothing/tone `Colors` helpers. |
 | `TizenAmbilight/src/WledOutput.cs` | WLED DRGB UDP packet building/sending, blackout hold. |
@@ -90,7 +91,7 @@ CI: `.gitlab-ci.yml` (lint job + one .NET build-and-test job; runs on the linked
 7. Standby sleep used a process-lifetime counter (`st.PowerSkipped`), so after the first standby every later one slept long; use the per-episode counter (`a57ffb8`, `Program.cs` comment).
 8. Zone sampling over the full active height made all zones on a side edge identical; each side zone must keep its own vertical segment (`a57ffb8`, `ZoneEngine.cs`).
 9. `Ambilight.Version` stayed `v3` through major behaviour changes and made build ID useless (`a57ffb8`, `Program.cs` comment).
-10. Do not apply the PQ transfer per channel (invents saturation); matrix in code domain, tone-map luma, scale RGB by one factor. `gain>1` clips; raise brightness via `gamma` (`a57ffb8`, README "Colour handling").
+10. Decode PQ per channel to linear light (the exact EOTF), but never apply a *tone curve* per channel (invents saturation): tone-map luma, scale RGB by one factor. Scaling R'G'B' by one factor in the PQ code domain instead lost ~2/3 of saturation (S90C patches; `hdrlin=0` keeps it for A/B). `gain>1` clips; raise brightness via `gamma` (`a57ffb8`, README "Colour handling").
 11. The letterbox row test gives false positives on the reference TV (observed cropping 25% of the picture). Since v5 rows are behind `barRows` (default 0); `bars` still drives pillarbox columns (`docs/how-it-works.md`).
 12. The Tizen SDK's default resource glob is Windows-only (`res\**\*`), so the icon never entered the TPK on Linux; the csproj declares `TizenTpkFiles` explicitly (`a57ffb8`, csproj comment).
 13. `stats-receiver.py` once accepted arbitrary file basenames and unbounded bodies; it now has an allow-list (400) and body cap (413). `control-server.py` is GET-only and answers writes with 405 (`9ceb0b9`).
