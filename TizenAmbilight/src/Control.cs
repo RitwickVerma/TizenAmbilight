@@ -56,7 +56,8 @@ namespace TizenAmbilight
                     case "gain":  if (dv >= 0.1 && dv <= 8.0) cfg.Gain = dv; break;
                     case "gamma": if (dv >= 1.0 && dv <= 4.0) cfg.Gamma = dv; break;
                     case "sat":   if (dv >= 0.0 && dv <= 4.0) cfg.Saturation = dv; break;
-                    case "hdr":  if (dv == 0 || dv == 1) cfg.Hdr = dv != 0; break;
+                    case "hdr":  if (dv == 0 || dv == 1 || dv == 2) SignalDetect.HdrMode = (int)dv; break;
+                    case "range": if (dv == 0 || dv == 1 || dv == 2) SignalDetect.RangeMode = (int)dv; break;
                     // Capture request size, live. The hardware scaler downsamples to whatever we ask
                     // for, and we only consume 73 zone averages, so a smaller request can cut the
                     // per-frame capture cost. Applied on the next capture; the zone layout rebuilds
@@ -92,6 +93,8 @@ namespace TizenAmbilight
                     case "shutdown": if (iv == 1) SelfTestShutdown(); break;
                     // HDR reference luminance in nits: what maps to full scale. Content varies above
                     // it and anything higher clips to WHITE, so this is the per-content knob.
+                    // hdrlin=0 returns to the older luma-scaled HDR decode (code-domain matrix), for A/B comparison.
+                    case "hdrlin": if (dv == 0 || dv == 1) VideoPlaneCapture.LinearHdrDecode = dv != 0; break;
                     case "peak": if (dv >= 100.0 && dv <= 4000.0) VideoPlaneCapture.HdrPeakNits = dv; break;
                     case "black": if (dv >= 0.0 && dv <= 200.0) cfg.Black = dv; break;
                     case "afast": if (dv >= 0.02 && dv <= 1.0) cfg.AlphaFast = dv; break;

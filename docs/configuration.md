@@ -110,7 +110,8 @@ also does not automatically load the form from this repository.
 | `mapOffset` / `mapReverse` | `0` / `0` | where the strip starts and which way it runs (see above) |
 | `outputEnabled` | `true` | master switch for UDP output |
 | **Colour and tone** | | |
-| `hdr` | `1` | decode the plane as PQ (HDR). Set `0` only if your TV delivers SDR. |
+| `hdr` | `2` | `2` = follow the TV (its AVOC content type: SDR, HDR10, HLG, HDR10+), falling back to a guess from the picture on firmware without AVOC; `1` = always PQ (HDR); `0` = always SDR (BT.709) |
+| `range` | `0` | `0` = follow the TV's effective HDMI black level (Low = limited, Normal = full), falling back to the picture's black level; `1` = always full; `2` = always limited |
 | `gamut` | `1` | convert BT.2020 to BT.709 for the LEDs |
 | `peak` | `203` | nits that map to full scale (100–4000) |
 | `adaptiveGamma` | `1` | scene-adaptive tone curve |
@@ -178,7 +179,8 @@ string-valued token is dropped silently. NaN and Infinity are rejected explicitl
 | `alpha` / `afast` / `acut` | 0.02–1 / 0.02–1 / 0–200 | smoothing |
 | `gamma` / `gain` / `black` | 1–4 / 0.1–8 / 0–200 | tone curve |
 | `ag` / `gmin` / `gmax` / `atau` | 0/1 / 0.5–3 / 0.5–4 / 0.2–60 | adaptive gamma |
-| `sat` / `hdr` / `gamut` / `peak` | 0–4 / 0/1 / 0/1 / 100–4000 | colour |
+| `sat` / `hdr` / `range` / `gamut` / `peak` | 0–4 / 0–2 / 0–2 / 0/1 / 100–4000 | colour |
+| `hdrlin` | 0/1 | HDR decode: 1 = per-channel PQ to linear light (default), 0 = the older luma-scaled code-domain path, for A/B comparison |
 | `spatial` / `punch` / `floor` | 0–1 / 0–1 / 0–255 | ambience |
 | `stale` / `stalevel` | 0–600000 ms / 0–1 | stale-picture fade |
 | `bars` / `brows` / `bthr` | 0/1 / 0/1 / 4–80 | black-bar detection |

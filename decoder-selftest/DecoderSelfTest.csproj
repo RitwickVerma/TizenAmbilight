@@ -23,6 +23,7 @@
     <Compile Include="../TizenAmbilight/src/WledOutput.cs" />
     <Compile Include="../TizenAmbilight/src/Json.cs" />
     <Compile Include="../TizenAmbilight/src/VideoPlaneCapture.cs" />
+    <Compile Include="../TizenAmbilight/src/SignalDetect.cs" />
     <Compile Include="../TizenAmbilight/src/ConfigFile.cs" />
     <Compile Include="../TizenAmbilight/src/PowerState.cs" />
   </ItemGroup>

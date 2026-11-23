@@ -389,6 +389,11 @@ namespace TizenAmbilight
         /// </summary>
         static ZoneColors _yuvScratch;
 
+        /// <summary>Raw plane Y/U/V averaged over every zone of the last frame, before any decoding. With a
+        /// uniform test patch on screen this is the patch's code value, which is what a colour calibration
+        /// is fitted to (telemetry <c>plane_yuv</c>).</summary>
+        public static double LastMeanY, LastMeanU, LastMeanV;
+
         public ZoneColors ExtractYuv(byte[] y, byte[] c, int width, int height,
                                      double saturation, double kr, double kg, double kb, bool hdr, bool gamut709,
                                      int yStride = 0, int cStride = 0, int sample = 1,
@@ -414,6 +419,7 @@ namespace TizenAmbilight
             if (_yuvScratch == null || _yuvScratch.Count != Zones.Length)
                 _yuvScratch = new ZoneColors(Zones.Length);
             ZoneColors outCols = _yuvScratch;
+            double accY = 0, accU = 0, accV = 0; int accN = 0;
 
             for (int z = 0; z < Zones.Length; z++)
             {
@@ -521,11 +527,13 @@ namespace TizenAmbilight
                 int Ym = (int)((sy + n / 2) / n);
                 int Um = nc > 0 ? (int)((su + nc / 2) / nc) : 128;
                 int Vm = nc > 0 ? (int)((sv + nc / 2) / nc) : 128;
+                accY += (double)sy / n; accU += nc > 0 ? (double)su / nc : 128; accV += nc > 0 ? (double)sv / nc : 128; accN++;
 
                 byte rr, gg, bb;
                 VideoPlaneCapture.YuvToRgb(Ym, Um, Vm, saturation, kr, kg, kb, hdr, gamut709, out rr, out gg, out bb);
                 outCols.R[z] = rr; outCols.G[z] = gg; outCols.B[z] = bb;
             }
+            if (accN > 0) { LastMeanY = accY / accN; LastMeanU = accU / accN; LastMeanV = accV / accN; }
             return outCols;
         }
     }
