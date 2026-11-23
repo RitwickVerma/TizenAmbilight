@@ -202,7 +202,13 @@ namespace TizenAmbilight
                             " gammaEff=" + Math.Round(cfg.AdaptiveGamma ? _adaptGamma : cfg.Gamma, 3) +
                             " range=" + cfg.GammaMin + ".." + cfg.GammaMax + " tau=" + cfg.AdaptTauS;
             w["plane_yuv"] = new List<object> { Math.Round(ZoneLayout.LastMeanY, 2), Math.Round(ZoneLayout.LastMeanU, 2), Math.Round(ZoneLayout.LastMeanV, 2) };
-            w["decode"] = "hdr=" + cfg.Hdr + " gamut=" + cfg.Gamut + " zoneSample=" + cfg.ZoneSample +
+            w["signal"] = SignalDetect.Describe() + " p995=" + Math.Round(SignalDetect.LastP995, 3) +
+                          " low=" + Math.Round(SignalDetect.LastLowFrac, 4) + " b16=" + Math.Round(SignalDetect.LastBlack16Frac, 4) +
+                          " switches=" + SignalDetect.Switches;
+            w["avoc"] = AvocHdr.Status + " type=" + AvocHdr.Name(AvocHdr.LastType) + " rc=" + AvocHdr.LastRc +
+                        " polls=" + AvocHdr.Polls + " fails=" + AvocHdr.Failures + " maxMs=" + AvocHdr.MaxMs +
+                        " blackLevel=" + AvocHdr.LastBlackLevel + " pcMode=" + AvocHdr.LastPcMode;
+            w["decode"] = "hdr=" + SignalDetect.HdrMode + " gamut=" + cfg.Gamut + " zoneSample=" + cfg.ZoneSample +
                           " peak=" + VideoPlaneCapture.HdrPeakNits + " targetFps=" + cfg.TargetFps;
             w["tuning"] = "alpha=" + cfg.Alpha + " gain=" + cfg.Gain + " gamma=" + cfg.Gamma +
                           " saturation=" + cfg.Saturation + " white=" + cfg.WhiteR + "/" + cfg.WhiteG +

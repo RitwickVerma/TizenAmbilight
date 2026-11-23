@@ -534,13 +534,21 @@ namespace TizenAmbilight
             double v = 128.0 + (V - 128.0) * saturation;
 
             int R, G, B;
+            // Range: limited-range planes (the TV's own apps, measured black 16) are stretched to full
+            // range first so both paths below see 0..255 codes. See SignalDetect.
+            double Yf = Y, cbf = u - 128.0, crf = v - 128.0;
+            if (InputLimited)
+            {
+                Yf = (Y - 16) * (255.0 / 219.0); if (Yf < 0) Yf = 0;
+                cbf *= 255.0 / 224.0; crf *= 255.0 / 224.0;
+            }
             if (hdr)
             {
-                // HDR path: BT.2020 non-constant-luminance, FULL range, matrixed in the PQ CODE domain.
-                double cb = u - 128.0, cr = v - 128.0;
+                // HDR path: BT.2020 non-constant-luminance, matrixed in the PQ CODE domain.
+                double cb = cbf, cr = crf;
                 if (LinearHdrDecode)
                 {
-                    PqDecodeLinear(Y + 1.4746 * cr, Y - 0.164553 * cb - 0.571353 * cr, Y + 1.8814 * cb,
+                    PqDecodeLinear(Yf + 1.4746 * cr, Yf - 0.164553 * cb - 0.571353 * cr, Yf + 1.8814 * cb,
                                    gamut709, out R, out G, out B);
                     goto scaled;
                 }
@@ -579,13 +587,11 @@ namespace TizenAmbilight
             }
             else
             {
-                int yy = Y - 16; if (yy < 0) yy = 0;
-                int uu = (int)Math.Round(u) - 128;
-                int vv = (int)Math.Round(v) - 128;
-
-                R = (298 * yy + 409 * vv + 128) >> 8;
-                G = (298 * yy - 100 * uu - 208 * vv + 128) >> 8;
-                B = (298 * yy + 516 * uu + 128) >> 8;
+                // SDR path: BT.709 (HD video, measured on the Jellyfin app), gamma codes passed through.
+                // It used BT.601 limited range before AVOC/SignalDetect, which tinted greens and assumed the range.
+                R = (int)Math.Round(Yf + 1.5748 * crf);
+                G = (int)Math.Round(Yf - 0.187324 * cbf - 0.468124 * crf);
+                B = (int)Math.Round(Yf + 1.8556 * cbf);
             }
 
         scaled:
@@ -613,6 +619,10 @@ namespace TizenAmbilight
         /// instead of clipping to white. Gamma 2.2 out matches how the PC's HDR desktop (KDE) encodes sRGB
         /// into PQ: greys round-trip within a few codes.</summary>
         public static bool LinearHdrDecode = true;
+
+        /// <summary>The plane is limited range (Y 16-235, C 16-240); set per frame from
+        /// <see cref="SignalDetect.UseLimited"/>. False = full range, as on the PC's HDMI input.</summary>
+        public static bool InputLimited = false;
 
         static double[] _pqLin;
         static double _pqLinPeak = -1.0;

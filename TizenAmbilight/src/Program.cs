@@ -189,6 +189,7 @@ namespace TizenAmbilight
             string selfTest = PngSelfTest.Run();
             L("png decoder self-test: " + selfTest);
 
+            AvocHdr.Start();   // the TV's own SDR/HDR flag; SignalDetect falls back to the picture without it
             // ---- (1) resolve the capture library ----
             bool usePlane = cfg.CaptureBackend == VideoPlaneCapture.BackendName || cfg.CaptureBackend == PpiCapture.BackendName;
             string vErr = null;
@@ -714,8 +715,11 @@ namespace TizenAmbilight
                         }
 
                         var zswv = Stopwatch.StartNew();
+                        SignalDetect.Observe(vr.Y, vr.YStride > 0 ? vr.YStride : vr.W, barTop, barBottom < 0 ? vr.H : barBottom,
+                                             barLeft, barRight < 0 ? vr.W : barRight, Environment.TickCount64);
+                        VideoPlaneCapture.InputLimited = SignalDetect.UseLimited;
                         raw = layout.ExtractYuv(vr.Y, vr.C, vr.W, vr.H,
-                                                cfg.Saturation, cfg.WhiteR, cfg.WhiteG, cfg.WhiteB, cfg.Hdr, cfg.Gamut,
+                                                cfg.Saturation, cfg.WhiteR, cfg.WhiteG, cfg.WhiteB, SignalDetect.UseHdr, cfg.Gamut,
                                                 vr.YStride, vr.CStride, cfg.ZoneSample,
                                                 barTop, barBottom < 0 ? vr.H : barBottom,
                                                 barLeft, barRight < 0 ? vr.W : barRight);

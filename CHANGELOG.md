@@ -15,6 +15,18 @@ identifier.
   refused. Measured on a QE77S90C: `rc=0`, 960x540 NV12, ~33 ms per capture. The stub fails every call,
   so protected content still falls back to the sampler. Telemetry `tv` reports `preload=`.
 
+### Changed
+- **SDR/HDR and signal range follow the TV.** The decoder assumed full-range PQ for everything, but the
+  plane's encoding depends on the source: on an S90C the PC's HDMI input carried full-range PQ, the
+  Jellyfin app limited-range BT.709 for SDR files and limited-range PQ for HDR10. SDR in apps came out
+  too bright with shifted hues (pure green became #00ff91). The app now reads the TV's own content type
+  and HDMI black level from its AV output control service (`libavoc.so`: `avoc_get_hdr_type`,
+  `avoc_get_hdmi_black_level`) on a separate thread, and falls back to a luma-histogram guess on
+  firmware without it. `hdr` now defaults to `2` (follow the TV; `1` restores always-PQ), new `range`
+  setting and token (`0` = follow). The SDR path uses BT.709 instead of BT.601 and handles both ranges;
+  limited-range PQ is stretched before the HDR decode. Telemetry gains `signal` and `avoc`; harness
+  sections [12] and [13].
+
 ### Fixed
 - **HDR lost about two thirds of its saturation.** The HDR decode scaled R'G'B' by one luma factor in the
   PQ code domain and then treated the result as gamma-2.4 encoded. A saturated colour's PQ codes sit close

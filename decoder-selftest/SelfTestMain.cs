@@ -328,6 +328,72 @@ namespace DecoderSelfTest
                 VideoPlaneCapture.LinearHdrDecode = prev; VideoPlaneCapture.HdrPeakNits = prevPeak;
             }
 
+            // Plane values read on the S90C's Jellyfin app with an SDR (BT.709, limited range) file, 2026-11-16.
+            Console.WriteLine();
+            Console.WriteLine("[12] SDR (BT.709, limited range) decode of measured Jellyfin patches");
+            {
+                var patches = new[] {
+                    new { name = "black", yuv = new[] { 16, 128, 128 }, want = new[] { 0, 0, 0 }, tol = 1 },
+                    new { name = "grey 50%", yuv = new[] { 126, 128, 128 }, want = new[] { 128, 128, 128 }, tol = 3 },
+                    new { name = "grey 25%", yuv = new[] { 71, 128, 128 }, want = new[] { 64, 64, 64 }, tol = 3 },
+                    new { name = "green", yuv = new[] { 172, 42, 27 }, want = new[] { 0, 255, 0 }, tol = 4 },
+                    new { name = "blue", yuv = new[] { 32, 239, 118 }, want = new[] { 0, 0, 255 }, tol = 6 },
+                };
+                VideoPlaneCapture.InputLimited = true;
+                foreach (var p in patches)
+                {
+                    byte r, g, b;
+                    VideoPlaneCapture.YuvToRgb(p.yuv[0], p.yuv[1], p.yuv[2], 1.0, 1, 1, 1, false, true, out r, out g, out b);
+                    int err = Math.Max(Math.Abs(r - p.want[0]), Math.Max(Math.Abs(g - p.want[1]), Math.Abs(b - p.want[2])));
+                    Check(err <= p.tol, p.name + " decodes to the patch", r + "," + g + "," + b + " max err " + err);
+                }
+                VideoPlaneCapture.InputLimited = false;
+            }
+
+            Console.WriteLine();
+            Console.WriteLine("[13] SDR/HDR and range detection from the luma histogram");
+            {
+                Func<int, int, int, int[]> hist = (lowVal, highVal, highCount) =>
+                {
+                    var h = new int[256]; h[lowVal] += 1000; h[110] += 8000 - highCount; h[highVal] += highCount; return h;
+                };
+                SignalDetect.Reset();
+                long t = 0;
+                // PC HDR: black 0, white 148. Stays PQ/full.
+                for (int i = 0; i < 20; i++) SignalDetect.ObserveHistogram(hist(0, 148, 400), 9000, t += 50);
+                Check(SignalDetect.DetHdr && !SignalDetect.DetLimited, "PC HDR frames stay pq/full", SignalDetect.Describe());
+                // Jellyfin SDR: black 16, white 235.
+                for (int i = 0; i < 20; i++) SignalDetect.ObserveHistogram(hist(16, 235, 400), 9000, t += 50);
+                Check(!SignalDetect.DetHdr && SignalDetect.DetLimited, "SDR app frames become sdr/limited", SignalDetect.Describe());
+                // A dark SDR scene keeps SDR for HdrReturnMs, then falls back to PQ.
+                for (int i = 0; i < 20; i++) SignalDetect.ObserveHistogram(hist(16, 120, 400), 9000, t += 50);
+                Check(!SignalDetect.DetHdr, "dark scene keeps sdr briefly", SignalDetect.Describe());
+                SignalDetect.ObserveHistogram(hist(16, 120, 400), 9000, t += SignalDetect.HdrReturnMs);
+                Check(SignalDetect.DetHdr && SignalDetect.DetLimited, "long dark scene returns to pq, range kept", SignalDetect.Describe());
+                // A small bright highlight (0.1% of the frame) is not SDR evidence.
+                for (int i = 0; i < 20; i++) SignalDetect.ObserveHistogram(hist(16, 235, 9), 9000, t += 50);
+                Check(SignalDetect.DetHdr, "a 0.1% highlight is not SDR evidence", SignalDetect.Describe());
+                // Back to the PC: true black flips range to full within two frames.
+                SignalDetect.ObserveHistogram(hist(0, 148, 400), 9000, t += 50);
+                SignalDetect.ObserveHistogram(hist(0, 148, 400), 9000, t += 50);
+                Check(!SignalDetect.DetLimited, "black at 0 means full range", SignalDetect.Describe());
+                // The TV's own flag (AVOC) overrides the picture guess in mode 2, and only there.
+                SignalDetect.HdrMode = 2;
+                SignalDetect.ExternalType = 0; Check(!SignalDetect.UseHdr, "tv says SDR -> sdr path", SignalDetect.Describe());
+                SignalDetect.ExternalType = 1; Check(SignalDetect.UseHdr, "tv says HDR10 -> pq path", SignalDetect.Describe());
+                SignalDetect.ExternalType = 2; Check(!SignalDetect.UseHdr, "tv says HLG -> gamma (sdr) path", SignalDetect.Describe());
+                SignalDetect.HdrMode = 1; SignalDetect.ExternalType = 0; Check(SignalDetect.UseHdr, "hdr=1 forces pq over the tv flag", SignalDetect.Describe());
+                SignalDetect.HdrMode = 2; SignalDetect.ExternalType = -1;
+                // The TV's black level decides the range in range mode 0, before any black frame is seen.
+                SignalDetect.Reset();
+                SignalDetect.ExternalLimited = 1; Check(SignalDetect.UseLimited, "tv black level Low -> limited", SignalDetect.Describe());
+                SignalDetect.ExternalLimited = 0; SignalDetect.ObserveHistogram(hist(16, 235, 400), 9000, 1);
+                Check(!SignalDetect.UseLimited, "tv black level Normal -> full", SignalDetect.Describe());
+                SignalDetect.RangeMode = 2; Check(SignalDetect.UseLimited, "range=2 forces limited", SignalDetect.Describe());
+                SignalDetect.RangeMode = 0;
+                SignalDetect.Reset();
+            }
+
             Console.WriteLine();
             Console.WriteLine("==================================================");
             TestScreenEdges();

@@ -22,7 +22,7 @@ Signing/install/run on the TV (`tizen install`, `tizen run`) needs Tizen Studio 
 ## Test
 - Framework: custom console harness `decoder-selftest/` (`net8.0`, no xUnit/NUnit); exits non-zero on any FAIL. Prints `PASSED n  FAILED m`.
 - Test data is generated, then checked in: `gen_testdata.py` (hand-written PNG encoder, no deps). Output goes to `decoder-selftest/testdata/`; regenerating at HEAD left `git status` clean.
-- The harness compiles the *same* source files the app uses (`PngDecoder`, `PngSelfTest`, `ZoneEngine`, `WledOutput`, `Json`, `VideoPlaneCapture`, `ConfigFile`, `PowerState`) via `<Compile Include="../TizenAmbilight/src/...">`. Add a new shared file there or the harness will not see it.
+- The harness compiles the *same* source files the app uses (`PngDecoder`, `PngSelfTest`, `ZoneEngine`, `WledOutput`, `Json`, `VideoPlaneCapture`, `SignalDetect`, `ConfigFile`, `PowerState`) via `<Compile Include="../TizenAmbilight/src/...">`. Add a new shared file there or the harness will not see it.
 - On-device self-check: `PngSelfTest.cs` runs at app start and reports PASS/FAIL in the startup telemetry.
 - No mocking framework. The Tizen/P-Invoke layer (`CaptureApi`, `VideoPlaneCapture` capture calls, the HTTP part of `PowerState`, `Preference`) is not unit tested.
 
@@ -32,7 +32,7 @@ cd decoder-selftest
 python3 gen_testdata.py
 dotnet run --project DecoderSelfTest.csproj
 ```
-Expected: `PASSED 151   FAILED 0`.
+Expected: `PASSED 169   FAILED 0`.
 
 CI: `.gitlab-ci.yml` (lint job + one .NET build-and-test job; runs on the linked shared runner). The GitLab project push-mirrors every branch and tag to GitHub, where `.github/workflows/ci.yml` repeats the checks and `release.yml` publishes a GitHub Release with the TPK on a `vX.Y.Z` tag that must equal the manifest version. Apps2Samsung installs from that GitHub release.
 
@@ -48,6 +48,8 @@ CI: `.gitlab-ci.yml` (lint job + one .NET build-and-test job; runs on the linked
 | `TizenAmbilight/src/Telemetry.cs` | `Stats` and the report builders. |
 | `TizenAmbilight/src/VideoPlaneCapture.cs` | Default backend: `dlopen`s `libvideo-capture`, fills NV12 buffers, YUV to RGB with HDR/gamut handling. |
 | `TizenAmbilight/native/` | Source + `build.sh` of the Tizen 8 `libtzcapturec.so` stub; the built `res/libtzcapturec.so` is committed. |
+| `TizenAmbilight/src/AvocHdr.cs` | Polls the TV's AVOC service (`libavoc.so`) for the content's HDR type and HDMI black level, on its own thread. |
+| `TizenAmbilight/src/SignalDetect.cs` | Chooses PQ vs SDR and full vs limited range: the TV's AVOC values first, else a guess from the luma histogram. Tested in the harness. |
 | `TizenAmbilight/src/CaptureApi.cs` | Legacy file backend: P/Invoke of `dc_request_capture_to_file_sync` with the 296-byte request struct. |
 | `TizenAmbilight/src/ZoneEngine.cs` | Perimeter zone layout, per-zone averaging, smoothing/tone `Colors` helpers. |
 | `TizenAmbilight/src/WledOutput.cs` | WLED DRGB UDP packet building/sending, blackout hold. |

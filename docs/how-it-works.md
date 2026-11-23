@@ -104,8 +104,15 @@ The app decodes those files with its own first-party PNG decoder.
 
 ## Colour handling
 
-The plane carries **PQ (SMPTE ST 2084) HDR** codes. Decoding them as SDR throws away the entire upper
-half of the signal. The rest of the chain follows from that:
+The plane carries **PQ (SMPTE ST 2084) HDR** codes for HDR content. Decoding them as SDR throws away the
+entire upper half of the signal. The rest of the chain follows from that:
+
+* **Which encoding, and which range.** It depends on the source: on an S90C the PC's HDMI input carried
+  full-range PQ, the Jellyfin app limited-range BT.709 for SDR files and limited-range PQ for HDR10. With
+  `hdr=2` / `range=0` (defaults) the app asks the TV: `AvocHdr` polls the AV output control service
+  (`libavoc.so`) for the content's HDR type and the effective HDMI black level. Where that library is
+  missing, `SignalDetect` guesses from the luma histogram (black at code 16 means limited; the 99.5th
+  percentile separates PQ from SDR). SDR is decoded as BT.709.
 
 * **Decode in linear light.** Matrix to R'G'B' (BT.2020 non-constant-luminance, full range), take each
   channel through the PQ EOTF (the transfer the signal was encoded with), convert BT.2020 -> 709 in
