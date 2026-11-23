@@ -6,6 +6,13 @@ identifier.
 
 ## [Unreleased]
 
+### Fixed
+- **Sampler strip pumped on near-static pictures.** The stale-frame fade exists because the video plane
+  keeps a closed video's last frame; the sampler measures the picture as shown, so a static picture is
+  real. Its point spots read "frozen" whenever the edges were calm, so the strip dimmed after `staleMs`
+  and snapped back each time one spot moved (seen on Samsung's HDMI animation). The fade now applies to
+  the video plane and file backends only.
+
 ## [1.0.2] — 2026-11-21 (build v8)
 
 ### Removed

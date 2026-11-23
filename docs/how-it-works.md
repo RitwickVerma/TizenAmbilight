@@ -307,6 +307,7 @@ WLED then reverts to its own stored colour, which is how an ambilight ends up gl
 * **A stale frame is not a live frame.** A closed or paused video leaves its last decoded frame in the
   plane, so capture keeps succeeding while the picture is frozen. A cheap Y-plane signature detects
   that and fades the strip out. It ramps up fast and down slowly, so resuming never feels laggy.
+  The hardware sampler skips this fade: it measures the picture as shown, so a static picture is real.
 * **Capture success is not evidence that the pipeline works.** Every safety mechanism reports its own
   counters in telemetry. Several of them exist because a silent failure was indistinguishable from a
   healthy run.
