@@ -195,7 +195,7 @@ namespace TizenAmbilight
             catch { }
 
             w["tv"] = "model=" + (_modelName ?? "") + " platform=" + (_platform ?? "unavailable") +
-                      " captureApi=" + (VideoPlaneCapture.Ready ? "ok" : "UNAVAILABLE") +
+                      " captureApi=" + (VideoPlaneCapture.Ready ? "ok" : "UNAVAILABLE") + " preload=" + VideoPlaneCapture.PreloadStatus +
                       " plane=" + VideoPlaneCapture.ReqW + "x" + VideoPlaneCapture.ReqH;
             w["adaptive"] = "enabled=" + cfg.AdaptiveGamma + " medianCode=" + _lastMedianCode +
                             " sceneNits=" + Math.Round(VideoPlaneCapture.PqNits(_lastMedianCode), 3) +

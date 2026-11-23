@@ -172,11 +172,20 @@ namespace TizenAmbilight
         {
             string resDir = null;
             try { resDir = Application.Current?.DirectoryInfo?.Resource; } catch { }
-            string binDir = AppDomain.CurrentDomain.BaseDirectory ?? "";
             ConfigFile.Load(
                 string.IsNullOrEmpty(resDir) ? null : System.IO.Path.Combine(resDir, "config.json"),
-                System.IO.Path.Combine(binDir, "..", "res", "config.json"));
+                System.IO.Path.Combine(BinResDir(), "config.json"));
         }
+
+        /// <summary>The TPK's res/ folder: the framework's answer, else the sibling of bin/.</summary>
+        static string ResDir()
+        {
+            string resDir = null;
+            try { resDir = Application.Current?.DirectoryInfo?.Resource; } catch { }
+            return string.IsNullOrEmpty(resDir) ? BinResDir() : resDir;
+        }
+
+        static string BinResDir() { return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory ?? "", "..", "res"); }
 
         static Config ReadConfig()
         {

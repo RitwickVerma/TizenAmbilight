@@ -57,6 +57,7 @@ To do it yourself:
    privilege level. With a `public` certificate the app installs and starts, but Tizen refuses to load
    the capture libraries (`libtzcapturec.so: Operation not permitted` in the startup log), so no frame
    is ever captured. Reported on a 2025 Q7F (GitHub issue #1); the reference TV is signed partner.
+   (On Tizen 8 the same `EPERM` happens even when signed partner; see the stub below.)
 4. Re-sign and install:
 
    ```bash
@@ -167,3 +168,23 @@ the two drift apart. The entry is listed in
 (`packages/RitwickVerma__TizenAmbilight.json`, merged in PR #132). A new release needs no catalog change:
 Apps2Samsung picks up the latest GitHub Release. A change to the entry itself (new form field, new
 label) needs a pull request there as well as here, and the two copies must stay identical.
+
+## Tizen 8 capture stub
+
+`libvideo-capture.so` is a thin wrapper that `dlopen`s `/prd/usr/lib/libvideo-capture-impl-sec.so` and
+answers `-95` to every call if that fails. On a 2023 S90C (Tizen 8.0, partner-signed) it fails only because
+`impl-sec` lists `libtzcapturec.so` as `DT_NEEDED`, and opening that gives a sideloaded app `EPERM`.
+`impl-sec` calls `TZCAPTURE_*` only from its protected-content branch; normal capture is plain DRM ioctls.
+
+`VideoPlaneCapture.PreloadImpl` therefore tries the system `libtzcapturec.so` first and, only if that is
+refused, loads `res/libtzcapturec.so` `RTLD_GLOBAL` and then `impl-sec`. The dynamic linker satisfies the
+`DT_NEEDED` entry from the already-loaded object of the same soname. The stub's functions all return -1, so
+protected content still fails and the DRM fallback still applies. The result is logged at startup and
+reported in telemetry (`tv` ... `preload=`).
+
+The `.so` is committed because the .NET-only build cannot compile C. To rebuild it
+(clang + lld, no Tizen SDK; TV userland is 32-bit ARM soft-float):
+
+```bash
+TizenAmbilight/native/build.sh
+```
