@@ -201,6 +201,7 @@ namespace TizenAmbilight
                             " sceneNits=" + Math.Round(VideoPlaneCapture.PqNits(_lastMedianCode), 3) +
                             " gammaEff=" + Math.Round(cfg.AdaptiveGamma ? _adaptGamma : cfg.Gamma, 3) +
                             " range=" + cfg.GammaMin + ".." + cfg.GammaMax + " tau=" + cfg.AdaptTauS;
+            w["plane_yuv"] = new List<object> { Math.Round(ZoneLayout.LastMeanY, 2), Math.Round(ZoneLayout.LastMeanU, 2), Math.Round(ZoneLayout.LastMeanV, 2) };
             w["decode"] = "hdr=" + cfg.Hdr + " gamut=" + cfg.Gamut + " zoneSample=" + cfg.ZoneSample +
                           " peak=" + VideoPlaneCapture.HdrPeakNits + " targetFps=" + cfg.TargetFps;
             w["tuning"] = "alpha=" + cfg.Alpha + " gain=" + cfg.Gain + " gamma=" + cfg.Gamma +

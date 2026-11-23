@@ -179,6 +179,7 @@ string-valued token is dropped silently. NaN and Infinity are rejected explicitl
 | `gamma` / `gain` / `black` | 1–4 / 0.1–8 / 0–200 | tone curve |
 | `ag` / `gmin` / `gmax` / `atau` | 0/1 / 0.5–3 / 0.5–4 / 0.2–60 | adaptive gamma |
 | `sat` / `hdr` / `gamut` / `peak` | 0–4 / 0/1 / 0/1 / 100–4000 | colour |
+| `hdrlin` | 0/1 | HDR decode: 1 = per-channel PQ to linear light (default), 0 = the older luma-scaled code-domain path, for A/B comparison |
 | `spatial` / `punch` / `floor` | 0–1 / 0–1 / 0–255 | ambience |
 | `stale` / `stalevel` | 0–600000 ms / 0–1 | stale-picture fade |
 | `bars` / `brows` / `bthr` | 0/1 / 0/1 / 4–80 | black-bar detection |

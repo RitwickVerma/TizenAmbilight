@@ -538,6 +538,12 @@ namespace TizenAmbilight
             {
                 // HDR path: BT.2020 non-constant-luminance, FULL range, matrixed in the PQ CODE domain.
                 double cb = u - 128.0, cr = v - 128.0;
+                if (LinearHdrDecode)
+                {
+                    PqDecodeLinear(Y + 1.4746 * cr, Y - 0.164553 * cb - 0.571353 * cr, Y + 1.8814 * cb,
+                                   gamut709, out R, out G, out B);
+                    goto scaled;
+                }
                 int R0 = Clamp255(Y + 1.4746 * cr);
                 int G0 = Clamp255(Y - 0.164553 * cb - 0.571353 * cr);
                 int B0 = Clamp255(Y + 1.8814 * cb);
@@ -582,6 +588,7 @@ namespace TizenAmbilight
                 B = (298 * yy + 516 * uu + 128) >> 8;
             }
 
+        scaled:
             R = (int)Math.Round(R * kr);
             G = (int)Math.Round(G * kg);
             B = (int)Math.Round(B * kb);
@@ -590,6 +597,80 @@ namespace TizenAmbilight
             if (G < 0) G = 0; else if (G > 255) G = 255;
             if (B < 0) B = 0; else if (B > 255) B = 255;
             rOut = (byte)R; gOut = (byte)G; bOut = (byte)B;
+        }
+
+        /// <summary>HDR decode: each PQ channel to linear light, BT.2020 -> 709 in linear, gamma 2.2 out.
+        /// The default; the live token <c>hdrlin=0</c> restores the older luma-scaled path.
+        ///
+        /// WHY: the older path scaled R'G'B' by one factor IN THE PQ CODE DOMAIN and then treated the result
+        /// as gamma-2.4 encoded. PQ codes of a saturated colour sit close together (sRGB red in a BT.2020 PQ
+        /// container reads R'G'B' = 134/84/56), so carrying their ratios into a gamma-2.4 domain keeps only
+        /// about a third of the saturation: measured on the S90C (PC HDMI input, HDR desktop, 2026-11-15),
+        /// pure red reached the strip as 135/66/42, blue as 54/34/93, and every scene looked white. The
+        /// per-channel EOTF here is the decode the signal was encoded with, not per-channel tone mapping,
+        /// so it invents nothing: the same patches decode to 247/23/2 and 49/20/255. Above the reference
+        /// white the colour is scaled down by its largest channel, so a bright highlight keeps its hue
+        /// instead of clipping to white. Gamma 2.2 out matches how the PC's HDR desktop (KDE) encodes sRGB
+        /// into PQ: greys round-trip within a few codes.</summary>
+        public static bool LinearHdrDecode = true;
+
+        static double[] _pqLin;
+        static double _pqLinPeak = -1.0;
+
+        /// <summary>PQ code (0..255, 1/16 steps) to linear light relative to <see cref="HdrPeakNits"/>.</summary>
+        static double PqLinear(double code)
+        {
+            if (_pqLin == null || _pqLinPeak != HdrPeakNits)
+            {
+                var t = new double[4081];
+                double peak = HdrPeakNits <= 0.0 ? 203.0 : HdrPeakNits;
+                for (int i = 0; i < t.Length; i++) t[i] = PqNitsExact(i / 16.0) / peak;
+                _pqLin = t; _pqLinPeak = HdrPeakNits;
+            }
+            if (code <= 0.0) return 0.0;
+            if (code >= 255.0) return _pqLin[4080];
+            double f = code * 16.0; int i0 = (int)f; double w = f - i0;
+            return _pqLin[i0] + (i0 < 4080 ? (_pqLin[i0 + 1] - _pqLin[i0]) * w : 0.0);
+        }
+
+        static double PqNitsExact(double code)
+        {
+            const double m1 = 2610.0 / 16384.0;
+            const double m2 = 2523.0 / 4096.0 * 128.0;
+            const double c1 = 3424.0 / 4096.0;
+            const double c2 = 2413.0 / 4096.0 * 32.0;
+            const double c3 = 2392.0 / 4096.0 * 32.0;
+            double N = code / 255.0;
+            double Nm = Math.Pow(N, 1.0 / m2);
+            double num = Nm - c1; if (num < 0.0) num = 0.0;
+            double den = c2 - c3 * Nm;
+            return den > 1e-9 ? 10000.0 * Math.Pow(num / den, 1.0 / m1) : 0.0;
+        }
+
+        /// <summary>See <see cref="LinearHdrDecode"/>. Inputs are R'G'B' PQ codes (unclamped).</summary>
+        public static void PqDecodeLinear(double rp, double gp, double bp, bool gamut709, out int R, out int G, out int B)
+        {
+            double r = PqLinear(rp), g = PqLinear(gp), b = PqLinear(bp);
+            if (gamut709)
+            {
+                double r7 = 1.6605 * r - 0.5876 * g - 0.0728 * b;
+                double g7 = -0.1246 * r + 1.1329 * g - 0.0083 * b;
+                double b7 = -0.0182 * r - 0.1006 * g + 1.1187 * b;
+                // Out of 709 gamut below zero: desaturate toward the colour's own luminance by the least
+                // amount that fixes it (same rule as ApplyGamut709), so hue survives and nothing is crushed.
+                double lum = 0.2126 * r7 + 0.7152 * g7 + 0.0722 * b7;
+                double t = 0.0;
+                foreach (double dc in new[] { r7, g7, b7 })
+                    if (dc < 0.0) { double need = (lum - dc) > 1e-9 ? -dc / (lum - dc) : 1.0; if (need > t) t = need; }
+                if (t > 1.0) t = 1.0;
+                r = r7 + (lum - r7) * t; g = g7 + (lum - g7) * t; b = b7 + (lum - b7) * t;
+            }
+            if (r < 0.0) r = 0.0; if (g < 0.0) g = 0.0; if (b < 0.0) b = 0.0;
+            double mx = Math.Max(r, Math.Max(g, b));
+            if (mx > 1.0) { r /= mx; g /= mx; b /= mx; }       // above reference white: keep the hue
+            R = Clamp255(255.0 * Math.Pow(r, 1.0 / 2.2));
+            G = Clamp255(255.0 * Math.Pow(g, 1.0 / 2.2));
+            B = Clamp255(255.0 * Math.Pow(b, 1.0 / 2.2));
         }
 
         /// <summary>BT.2020 primaries -> BT.709 primaries, in LINEAR light.

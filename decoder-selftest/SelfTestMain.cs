@@ -300,6 +300,34 @@ namespace DecoderSelfTest
                 Check(PowerStateProbe.ExtractStringValue("{}", "PowerState") == null, "absent key returns null", "");
             }
 
+            // ============================================================ 11. HDR decode against measured patches
+            // Plane Y/U/V measured on a QE77S90C (PC HDMI input, KDE HDR desktop) for full-screen sRGB patches,
+            // 2026-11-15. The decode must give the patch back, within a tolerance for 8-bit plane rounding.
+            Console.WriteLine();
+            Console.WriteLine("[11] HDR (PQ, BT.2020) decode of measured S90C patches");
+            {
+                var patches = new[] {
+                    new { name = "white", yuv = new[] { 148.0, 128, 128 }, want = new[] { 255, 255, 255 }, tol = 6 },
+                    new { name = "grey 50%", yuv = new[] { 106.0, 128, 128 }, want = new[] { 128, 128, 128 }, tol = 8 },
+                    new { name = "grey 25%", yuv = new[] { 71.0, 128, 128 }, want = new[] { 64, 64, 64 }, tol = 8 },
+                    new { name = "red", yuv = new[] { 95.73, 107, 154 }, want = new[] { 255, 0, 0 }, tol = 30 },
+                    new { name = "green", yuv = new[] { 125.03, 104, 117 }, want = new[] { 0, 255, 0 }, tol = 45 },
+                    new { name = "blue", yuv = new[] { 70.76, 168, 136 }, want = new[] { 0, 0, 255 }, tol = 55 },
+                    new { name = "yellow", yuv = new[] { 141.09, 101, 130.38 }, want = new[] { 255, 255, 0 }, tol = 20 },
+                };
+                bool prev = VideoPlaneCapture.LinearHdrDecode; double prevPeak = VideoPlaneCapture.HdrPeakNits;
+                VideoPlaneCapture.LinearHdrDecode = true; VideoPlaneCapture.HdrPeakNits = 203.0;
+                foreach (var p in patches)
+                {
+                    double y = p.yuv[0], cb = p.yuv[1] - 128, cr = p.yuv[2] - 128;
+                    int r, g, b;
+                    VideoPlaneCapture.PqDecodeLinear(y + 1.4746 * cr, y - 0.164553 * cb - 0.571353 * cr, y + 1.8814 * cb, true, out r, out g, out b);
+                    int err = Math.Max(Math.Abs(r - p.want[0]), Math.Max(Math.Abs(g - p.want[1]), Math.Abs(b - p.want[2])));
+                    Check(err <= p.tol, p.name + " decodes to the patch", r + "," + g + "," + b + " max err " + err);
+                }
+                VideoPlaneCapture.LinearHdrDecode = prev; VideoPlaneCapture.HdrPeakNits = prevPeak;
+            }
+
             Console.WriteLine();
             Console.WriteLine("==================================================");
             TestScreenEdges();

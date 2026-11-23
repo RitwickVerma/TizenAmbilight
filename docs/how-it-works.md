@@ -7,7 +7,7 @@ colours are computed, and the safety mechanisms around the strip. For setup, see
 ```
 video plane (960x540 NV12, in memory)
   -> N perimeter zones, per-zone YUV average        (subsampled x3)
-  -> colour matrix once per zone                    (BT.2020, PQ code domain when hdr=1)
+  -> colour matrix once per zone                    (BT.2020; hdr=1: PQ -> linear per channel)
   -> gamut map BT.2020 -> BT.709                    (soft: desaturate toward luminance)
   -> saturation -> adaptive EMA -> perimeter ring blur -> stale fade
   -> tone map (black-level crush + scene-adaptive gamma)
@@ -107,10 +107,17 @@ The app decodes those files with its own first-party PNG decoder.
 The plane carries **PQ (SMPTE ST 2084) HDR** codes. Decoding them as SDR throws away the entire upper
 half of the signal. The rest of the chain follows from that:
 
-* **Matrix in the PQ code domain** (BT.2020 non-constant-luminance, full range), then **tone-map the
-  luma** and scale R/G/B by that single factor. Applying the transfer **per channel** widens the gaps
-  between channels and *invents* saturation. That was measured at +18% mean saturation, with a visible
-  hue shift on exactly the most saturated zones.
+* **Decode in linear light.** Matrix to R'G'B' (BT.2020 non-constant-luminance, full range), take each
+  channel through the PQ EOTF (the transfer the signal was encoded with), convert BT.2020 -> 709 in
+  linear light, scale by the largest channel above the reference white (`peak`) so highlights keep
+  their hue, and encode gamma 2.2 for the strip. Measured with full-screen sRGB patches on an S90C
+  (PC HDMI input, HDR desktop): red decodes to 247/23/2, blue to 49/20/255, greys within a few codes.
+  The earlier path scaled R'G'B' by one luma factor *in the PQ code domain* and then treated it as
+  gamma-encoded. A saturated colour's PQ codes sit close together (sRGB red in a BT.2020 PQ container is
+  134/84/56), so it kept about a third of the saturation: red reached the strip as 135/66/42 and most
+  scenes looked white. The live token `hdrlin=0` restores it for comparison. What must stay luma-only is
+  the *tone curve* (below): a non-linear curve applied per channel does widen the gaps between channels
+  and invent saturation (+18% measured).
 * **Gamut.** HDR content uses BT.2020 primaries, while the LEDs are effectively BT.709/sRGB. Feeding
   2020 triples straight through renders them *less* saturated; converting them widened the measured
   chroma spread by 63%. Out-of-gamut colours are soft-mapped (desaturated toward their own luminance by
