@@ -27,6 +27,11 @@
     </TizenTpkFiles>
     <!-- Settings, shipped as res/config.json. Your own config.json (gitignored) wins; otherwise the
          committed template ships, which is what the Apps2Samsung install form patches. -->
+    <!-- Stand-in for the TrustZone capture library the app may not open on Tizen 8; see native/. -->
+    <TizenTpkFiles Include="res/libtzcapturec.so">
+      <TizenTpkSubDir>res/</TizenTpkSubDir>
+      <TizenTpkFileName>libtzcapturec.so</TizenTpkFileName>
+    </TizenTpkFiles>
     <TizenTpkFiles Include="config.json" Condition="Exists('config.json')">
       <TizenTpkSubDir>res/</TizenTpkSubDir>
       <TizenTpkFileName>config.json</TizenTpkFileName>

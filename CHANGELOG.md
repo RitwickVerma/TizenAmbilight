@@ -6,6 +6,15 @@ identifier.
 
 ## [Unreleased]
 
+### Added
+- **Full-frame capture on Tizen 8.** On the S90C, `libvideo-capture` answered `rc=-95` because its
+  implementation `libvideo-capture-impl-sec.so` failed to load: its `DT_NEEDED` `libtzcapturec.so` is
+  `EPERM` for a sideloaded app. That library is used only for protected content; normal capture is plain
+  DRM ioctls. The app now ships a 1.6 KB stub of that soname (`res/libtzcapturec.so`, source in
+  `TizenAmbilight/native/`) and loads it `RTLD_GLOBAL` before `impl-sec`, only when the system library is
+  refused. Measured on a QE77S90C: `rc=0`, 960x540 NV12, ~33 ms per capture. The stub fails every call,
+  so protected content still falls back to the sampler. Telemetry `tv` reports `preload=`.
+
 ## [1.0.2] — 2026-11-21 (build v8)
 
 ### Removed

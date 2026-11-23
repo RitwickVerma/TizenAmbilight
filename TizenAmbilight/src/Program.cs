@@ -194,7 +194,9 @@ namespace TizenAmbilight
             string vErr = null;
             if (usePlane)
             {
+                VideoPlaneCapture.StubDir = ResDir();
                 vErr = VideoPlaneCapture.Init();
+                L("video-plane implementation preload: " + VideoPlaneCapture.PreloadStatus);
                 if (vErr != null) L("VIDEO-PLANE backend NOT ready: " + vErr +
                                     " (set preference captureBackend=file to fall back)");
                 else L("video-plane backend ready: " + VideoPlaneCapture.ResolvedPath + " @ 0x" +

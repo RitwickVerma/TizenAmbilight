@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.InteropServices;
 
 namespace TizenAmbilight
@@ -164,6 +165,48 @@ namespace TizenAmbilight
         public static IntPtr FunctionPointer { get { return _fn; } }
         public static bool Ready { get { return _call != null; } }
 
+        // ---- Tizen 8 (S90C): the implementation library behind libvideo-capture ----
+        // libvideo-capture.so is a thin wrapper that dlopens /prd/usr/lib/libvideo-capture-impl-sec.so and
+        // answers -95 ("Non implemented Function") for every call when that load fails. On the S90C it fails
+        // only because impl-sec lists libtzcapturec.so as DT_NEEDED and a sideloaded app gets EPERM opening
+        // it. impl-sec calls TZCAPTURE_* solely from scaler_capture_secure (protected content); the normal
+        // capture is plain DRM ioctls on /dev/dri/card1, which the app may open. The dynamic linker satisfies
+        // a DT_NEEDED entry from an already-loaded object of the same soname, so loading a stub
+        // libtzcapturec.so (res/, built from native/tzcapturec_stub.c) RTLD_GLOBAL first lets impl-sec load,
+        // and its constructor injects the real implementation into libvideo-capture. Measured 2026-11-15 on
+        // QE77S90C: rc=0 960x540, ~33 ms per capture. The stub fails every call, so protected content takes
+        // the secure branch, fails, and the existing rc=-4 -> sampler fallback still applies.
+        const string ImplPath = "/prd/usr/lib/libvideo-capture-impl-sec.so";
+        const string TzLib = "libtzcapturec.so";
+        const int RTLD_GLOBAL = 0x00100;
+
+        /// <summary>Folder holding the stub libtzcapturec.so (the app's res/). Set before <see cref="Init"/>;
+        /// null skips the preload.</summary>
+        public static string StubDir;
+        /// <summary>What the preload did, for the startup log and telemetry.</summary>
+        public static string PreloadStatus = "not attempted";
+
+        /// <summary>Make libvideo-capture-impl-sec.so loadable, using the stub only if the system's own
+        /// libtzcapturec.so is refused. Harmless where the system library loads (Tizen 9).</summary>
+        static void PreloadImpl()
+        {
+            if (string.IsNullOrEmpty(StubDir) || !File.Exists(ImplPath)) { PreloadStatus = "skipped"; return; }
+            dlerror();
+            IntPtr tz = dlopen(TzLib, RTLD_LAZY | RTLD_GLOBAL);
+            string tzState = "system";
+            if (tz == IntPtr.Zero)
+            {
+                string sysErr = DlErr();
+                tz = dlopen(Path.Combine(StubDir, TzLib), RTLD_NOW | RTLD_GLOBAL);
+                tzState = tz != IntPtr.Zero ? "stub (system: " + sysErr + ")" : "stub failed: " + DlErr();
+                if (tz == IntPtr.Zero) { PreloadStatus = "tzcapturec " + tzState; return; }
+            }
+            IntPtr impl = dlopen(ImplPath, RTLD_NOW | RTLD_GLOBAL);
+            PreloadStatus = "tzcapturec " + tzState + ", impl-sec " + (impl != IntPtr.Zero ? "loaded" : "failed: " + DlErr());
+        }
+
+        static string DlErr() { IntPtr m = dlerror(); return m == IntPtr.Zero ? "?" : Marshal.PtrToStringAnsi(m); }
+
         /// <summary>Idempotent. dlopen + dlsym + allocate the param struct and both planes ONCE.
         /// Returns null on success, or the error text.</summary>
         public static string Init()
@@ -172,6 +215,7 @@ namespace TizenAmbilight
 
             try
             {
+                if (PreloadStatus == "not attempted") PreloadImpl();
                 IntPtr err0 = dlerror();
                 _lib = dlopen(LibName, RTLD_NOW);
                 if (_lib == IntPtr.Zero)

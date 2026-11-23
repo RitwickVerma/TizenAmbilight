@@ -47,6 +47,7 @@ CI: `.gitlab-ci.yml` (lint job + one .NET build-and-test job; runs on the linked
 | `TizenAmbilight/src/Lifecycle.cs` | Shutdown, log flush, blackout hold. |
 | `TizenAmbilight/src/Telemetry.cs` | `Stats` and the report builders. |
 | `TizenAmbilight/src/VideoPlaneCapture.cs` | Default backend: `dlopen`s `libvideo-capture`, fills NV12 buffers, YUV to RGB with HDR/gamut handling. |
+| `TizenAmbilight/native/` | Source + `build.sh` of the Tizen 8 `libtzcapturec.so` stub; the built `res/libtzcapturec.so` is committed. |
 | `TizenAmbilight/src/CaptureApi.cs` | Legacy file backend: P/Invoke of `dc_request_capture_to_file_sync` with the 296-byte request struct. |
 | `TizenAmbilight/src/ZoneEngine.cs` | Perimeter zone layout, per-zone averaging, smoothing/tone `Colors` helpers. |
 | `TizenAmbilight/src/WledOutput.cs` | WLED DRGB UDP packet building/sending, blackout hold. |
