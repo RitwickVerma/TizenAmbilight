@@ -51,6 +51,17 @@ OUT = os.path.abspath(OPTS.out)
 os.makedirs(OUT, exist_ok=True)
 LATEST = os.path.join(OUT, "latest.json")
 HIST = os.path.join(OUT, "history.log")
+HIST_CAP = 10 * 1024 * 1024  # roll to history.log.1 past 10 MiB; one old file kept
+
+
+def append_hist(line):
+    try:
+        if os.path.getsize(HIST) > HIST_CAP:
+            os.replace(HIST, HIST + ".1")
+    except FileNotFoundError:
+        pass
+    with open(HIST, "a") as f:
+        f.write(line + "\n")
 ALLOWED_NAMES = {n.strip() for n in OPTS.allow_name.split(",") if n.strip()}
 
 # Keep the newest report only, but log a compact line for every one so a
@@ -103,9 +114,8 @@ class Handler(BaseHTTPRequestHandler):
                 blob = base64.b64decode(d.get("data") or "")
                 with open(os.path.join(OUT, name), "wb") as f:
                     f.write(blob)
-                with open(HIST, "a") as f:
-                    f.write(json.dumps({"t": time.strftime("%Y-%m-%d %H:%M:%S"),
-                                        "file": name, "bytes": len(blob)}) + "\n")
+                append_hist(json.dumps({"t": time.strftime("%Y-%m-%d %H:%M:%S"),
+                                        "file": name, "bytes": len(blob)}))
                 self._reply(200, b"saved")
             except Exception as e:
                 self._reply(400, f"bad file payload: {e}".encode())
@@ -118,8 +128,7 @@ class Handler(BaseHTTPRequestHandler):
             j, pretty = {}, text
         with open(LATEST, "w") as f:
             f.write(pretty)
-        with open(HIST, "a") as f:
-            f.write(summarise(j) + "\n")
+        append_hist(summarise(j))
         self._reply(200, b"ok")
 
     def log_message(self, *a):
