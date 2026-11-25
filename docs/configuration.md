@@ -126,7 +126,7 @@ also does not automatically load the form from this repository.
 | `spatial` | `0.50` | blend between neighbouring zones |
 | `punch` / `punchFrames` | `0.15` / `5` | brief brightness overshoot on a cut |
 | `floor` | `0` | minimum zone level. 0 keeps true blacks. Must exceed `black` to have any effect. |
-| `staleMs` / `staleLevel` | `6000` / `0.35` | fade to this level after the picture has been frozen this long |
+| `staleMs` / `staleLevel` | `6000` / `0.35` | fade to this level after the picture has been frozen this long (video plane / file backend only; the sampler never fades) |
 | `targetFps` | `25` | frame-rate cap (0 = uncapped) |
 | **Sampling** | | |
 | `bandFrac` | `0.08` | depth of the sampled border band, as a fraction of the frame |
