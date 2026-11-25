@@ -13,8 +13,11 @@ whether it worked or not. Open an issue with the **Device report** template and 
 
 ## Code changes
 
-1. Development happens on [GitLab](https://gitlab.com/ritwick7/TizenAmbilight); merge requests there
-   are preferred. The GitHub repository is a mirror, but pull requests there are also read.
+1. Open a pull request on [GitHub](https://github.com/RitwickVerma/TizenAmbilight) or a merge request
+   on [GitLab](https://gitlab.com/ritwick7/TizenAmbilight), whichever you prefer. GitLab is the
+   source of truth and GitHub is its mirror, so an accepted GitHub PR is merged on GitLab with your
+   exact commits. The mirror then marks your PR **Merged** under your name. Please don't rebase or
+   squash after review unless asked; a new head needs a new review.
 2. Branch from `master`. Use [Conventional Commits](https://www.conventionalcommits.org/)
    (`fix:`, `feat:`, `docs:`, `refactor:`, `ci:`), with a body that explains *why*.
 3. Before pushing:
