@@ -303,10 +303,29 @@ namespace DecoderSelfTest
             Console.WriteLine();
             Console.WriteLine("==================================================");
             TestScreenEdges();
+            TestEmptyPlane();
 
             Console.WriteLine("PASSED " + _pass + "   FAILED " + _fail);
             Console.WriteLine("==================================================");
             return _fail == 0 ? 0 : 1;
+        }
+
+        static void TestEmptyPlane()
+        {
+            Console.WriteLine();
+            Console.WriteLine("[11] empty video-plane detection (IsEmptyPlane)");
+            int n = VideoPlaneCapture.CBytes;
+
+            var empty = new byte[n];                       // unfilled buffer while the panel wakes
+            Check(VideoPlaneCapture.IsEmptyPlane(empty), "all-zero chroma plane is empty", "");
+
+            var grey = new byte[n];                        // neutral grey: U = V = 128
+            for (int i = 0; i < n; i++) grey[i] = 128;
+            Check(!VideoPlaneCapture.IsEmptyPlane(grey), "neutral grey is not empty", "U=V=128");
+
+            var yellow = new byte[n];                      // saturated yellow (BT.709): U ~16, V ~138
+            for (int i = 0; i < n; i += 2) { yellow[i] = 16; yellow[i + 1] = 138; }
+            Check(!VideoPlaneCapture.IsEmptyPlane(yellow), "saturated yellow is not empty", "U=16 V=138");
         }
 
         static void TestScreenEdges()
