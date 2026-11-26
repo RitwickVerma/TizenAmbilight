@@ -563,6 +563,7 @@ namespace TizenAmbilight
                         // frame, without backing off, so the first real frame follows at once.
                         if (VideoPlaneCapture.IsEmptyPlane(vr.C))
                         {
+                            st.EmptyPlaneSkips++;
                             st.LastStatus = "vplane rc=0 but planes are empty (panel waking)";
                             MaybePost(cfg, captureDir, layout, smoothed, st);
                             MaybeBlackout(cfg, st);
