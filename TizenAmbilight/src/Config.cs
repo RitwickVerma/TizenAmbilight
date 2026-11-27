@@ -254,7 +254,7 @@ namespace TizenAmbilight
             // reference TV it carried no letterbox rows and the row test only produced false
             // positives (observed cropping 25% of the picture). `barRows=1` re-enables it for a
             // device whose plane does carry them.
-            c.Bars = PrefInt("bars", 1) != 0;
+            c.Bars = PrefInt("bars", 0) != 0;   // OFF: one switch covers rows+columns, rows false-trigger
             c.BarRows = PrefInt("barRows", 0) != 0;
             // 18, not 24. A genuine bar reads the PQ black level (16, measured); dark PICTURE reads
             // 21-26, so 24 cropped real picture whenever a scene went dark. The detector also
@@ -280,7 +280,7 @@ namespace TizenAmbilight
             if (c.Floor > 255) c.Floor = 255;
             c.StaleMs = PrefDouble("staleMs", 6000);
             if (c.StaleMs < 0) c.StaleMs = 0;
-            c.StaleLevel = PrefDouble("staleLevel", 0.35);
+            c.StaleLevel = PrefDouble("staleLevel", 0);   // approved: frozen picture fades to black
             if (c.StaleLevel < 0) c.StaleLevel = 0;
             if (c.StaleLevel > 1.0) c.StaleLevel = 1.0;
             // 1.0 = no chroma exaggeration. Scaling chroma preserves hue and cannot create colour in

@@ -208,6 +208,10 @@ namespace TizenAmbilight
                           "/" + cfg.WhiteB;
             // Report the EFFECTIVE gamma - with the adaptive curve on, cfg.Gamma is only the manual
             // fallback and quoting it here made the telemetry disagree with what is actually applied.
+            // Every k=v token in the live control body is by definition a departure from the baked
+            // defaults (the approved look). Empty means the TV is running exactly what was approved.
+            w["overrides"] = ControlOverrides(_appliedCtrl);
+            w["supervision"] = SupervisionReport();
             w["tone"] = "black=" + cfg.Black + " gamma=" +
                         Math.Round(cfg.AdaptiveGamma ? _adaptGamma : cfg.Gamma, 3) +
                         " gain=" + cfg.Gain +

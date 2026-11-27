@@ -126,12 +126,12 @@ also does not automatically load the form from this repository.
 | `spatial` | `0.50` | blend between neighbouring zones |
 | `punch` / `punchFrames` | `0.15` / `5` | brief brightness overshoot on a cut |
 | `floor` | `0` | minimum zone level. 0 keeps true blacks. Must exceed `black` to have any effect. |
-| `staleMs` / `staleLevel` | `6000` / `0.35` | fade to this level after the picture has been frozen this long (video plane / file backend only; the sampler never fades) |
+| `staleMs` / `staleLevel` | `6000` / `0` | fade to this level after the picture has been frozen this long (video plane / file backend only; the sampler never fades) |
 | `targetFps` | `25` | frame-rate cap (0 = uncapped) |
 | **Sampling** | | |
 | `bandFrac` | `0.08` | depth of the sampled border band, as a fraction of the frame |
 | `zoneSample` | `3` | pixel stride inside a zone (1 = every pixel) |
-| `bars` | `1` | black-bar detection (pillarbox columns) |
+| `bars` | `0` | black-bar detection. Off by default: the one switch covers rows and columns, and rows false-trigger on this plane |
 | `barRows` | `0` | also detect letterbox rows (false positives on the reference TV) |
 | `barThresh` / `barHold` | `18` / `8` | bar luma threshold; frames before adopting a new crop |
 | **Helpers and diagnostics** | | |
@@ -191,6 +191,18 @@ string-valued token is dropped silently. NaN and Infinity are rejected explicitl
 | `zhex` | 0/1 | report every zone in telemetry |
 | `dump` | 1 | send the next frame's raw planes to the collector |
 | `shutdown` | 1 | run the shutdown path (blackout, log flush) and exit |
+| `crashtest` | 1 / 2 | exit abnormally (`Environment.Exit(3)` / `FailFast`) to prove the platform restarts the app |
+
+One-shot actions (`shutdown`, `crashtest`) are ignored in the first body a process sees, so a body left holding one cannot kill every restart.
+
+## Supervision
+
+- **Restart:** the manifest sets `auto-restart="true"`; the TV's launcher restarts the app after an abnormal exit (measured ~22–25 s). Nothing off the TV is needed.
+- **One process:** `<app data dir>/instance.lock` is held exclusively for the process lifetime; the kernel releases it on any death.
+- **No restart storm:** more than 5 starts in 10 min puts the app in a 10 min cooldown (alive, strip held black, no capture calls, `phase: cooldown` report), then it starts normally.
+- **No stuck pause:** a `pause` expires after the control channel has been unreachable for 120 s.
+- **Visible:** telemetry `supervision` reports `lock=held starts=N/5in600s`; anything `UNAVAILABLE` means that guard is off.
+- **Drift:** baked defaults are the approved look, so the control body should be just `run`. Telemetry `overrides` lists every `k=v` token in the live body; empty means the TV runs the approved defaults.
 
 A sticky `pause` is possible: if the control host dies while the body says `pause`, the app stays
 paused. That is deliberate. Resuming on a timeout could start a capture while an install is about to

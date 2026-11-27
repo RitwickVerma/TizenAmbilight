@@ -2,7 +2,7 @@
 <manifest package="dev.ritwickverma.TizenAmbilight" version="1.0.2" api-version="6.5" xmlns="http://tizen.org/ns/packages">
     <author>Ritwick Verma</author>
     <profile name="tv" />
-    <service-application appid="dev.ritwickverma.TizenAmbilight" exec="TizenAmbilight.dll" multiple="false" nodisplay="true" taskmanage="false" api-version="9" type="dotnet" on-boot="true" auto-restart="false">
+    <service-application appid="dev.ritwickverma.TizenAmbilight" exec="TizenAmbilight.dll" multiple="false" nodisplay="true" taskmanage="false" api-version="9" type="dotnet" on-boot="true" auto-restart="true">
         <label>TizenAmbilight</label>
         <icon>TizenAmbilight.png</icon>
         <splash-screens />
