@@ -304,6 +304,31 @@ namespace DecoderSelfTest
             Console.WriteLine("==================================================");
             TestScreenEdges();
 
+            // ============================================================ shadow chroma fade
+            Console.WriteLine("[cf] shadow chroma fade");
+            {
+                byte r, g, b, r2, g2, b2;
+                // measured TV bias at true black: V 1-3 codes low. Must decode NEUTRAL, not green.
+                VideoPlaneCapture.YuvToRgb(16, 128, 125, 1.0, 1, 1, 1, true, true, out r, out g, out b);
+                Check(r == g && g == b, "true black with biased V decodes neutral", r + "," + g + "," + b);
+                VideoPlaneCapture.YuvToRgb(24, 129, 125, 1.0, 1, 1, 1, true, true, out r, out g, out b);
+                Check(Math.Abs(r - g) <= 1 && Math.Abs(g - b) <= 1, "dark-film shadow bias stays ~neutral", r + "," + g + "," + b);
+                // above the band the fade must be bit-identical to no fade
+                double lo = VideoPlaneCapture.ChromaFadeLo, hi = VideoPlaneCapture.ChromaFadeHi;
+                VideoPlaneCapture.YuvToRgb(90, 100, 170, 1.0, 1, 1, 1, true, true, out r, out g, out b);
+                VideoPlaneCapture.ChromaFadeHi = 0; // disabled
+                VideoPlaneCapture.YuvToRgb(90, 100, 170, 1.0, 1, 1, 1, true, true, out r2, out g2, out b2);
+                Check(r == r2 && g == g2 && b == b2, "bright colour untouched by fade", r + "," + g + "," + b + " vs " + r2 + "," + g2 + "," + b2);
+                // disabled fade reproduces the green cast (proves the test can fail)
+                VideoPlaneCapture.YuvToRgb(24, 129, 125, 1.0, 1, 1, 1, true, true, out r2, out g2, out b2);
+                Check(g2 > r2, "fade off: biased shadow decodes green (control)", r2 + "," + g2 + "," + b2);
+                VideoPlaneCapture.ChromaFadeHi = hi; VideoPlaneCapture.ChromaFadeLo = lo;
+                Check(VideoPlaneCapture.ShadowChromaWeight(18) == 0.0 && VideoPlaneCapture.ShadowChromaWeight(40) == 1.0
+                      && VideoPlaneCapture.ShadowChromaWeight(29) > 0.4 && VideoPlaneCapture.ShadowChromaWeight(29) < 0.6,
+                      "weight endpoints and midpoint", VideoPlaneCapture.ShadowChromaWeight(29).ToString("0.###"));
+            }
+            Console.WriteLine();
+
             Console.WriteLine("PASSED " + _pass + "   FAILED " + _fail);
             Console.WriteLine("==================================================");
             return _fail == 0 ? 0 : 1;

@@ -94,6 +94,9 @@ namespace TizenAmbilight
                     // it and anything higher clips to WHITE, so this is the per-content knob.
                     case "peak": if (dv >= 100.0 && dv <= 4000.0) VideoPlaneCapture.HdrPeakNits = dv; break;
                     case "black": if (dv >= 0.0 && dv <= 200.0) cfg.Black = dv; break;
+                    // Shadow chroma fade band in luma codes (cfhi <= cflo disables it).
+                    case "cflo": if (dv >= 0.0 && dv <= 255.0) VideoPlaneCapture.ChromaFadeLo = dv; break;
+                    case "cfhi": if (dv >= 0.0 && dv <= 255.0) VideoPlaneCapture.ChromaFadeHi = dv; break;
                     case "afast": if (dv >= 0.02 && dv <= 1.0) cfg.AlphaFast = dv; break;
                     case "acut":  if (dv >= 0.0 && dv <= 200.0) cfg.AlphaCut = dv; break;
                     case "spatial": if (dv >= 0.0 && dv <= 1.0) cfg.Spatial = dv; break;
