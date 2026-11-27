@@ -65,7 +65,7 @@ namespace TizenAmbilight
         {
             try
             {
-                string dir = "/home/owner/ambilight";
+                string dir = StateDir;
                 if (!System.IO.Directory.Exists(dir)) System.IO.Directory.CreateDirectory(dir);
                 List<string> snap;
                 lock (_logLock) { snap = new List<string>(Log); }

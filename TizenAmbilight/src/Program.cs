@@ -74,7 +74,7 @@ namespace TizenAmbilight
         public const string AppId = "dev.ritwickverma.TizenAmbilight";
         // Bump this whenever behaviour changes. It sat at "v3" through the HDR decode, the BT.2020->709
         // gamut map and the adaptive tone curve, which made build identification useless in telemetry.
-        public const string Version = "v9";
+        public const string Version = "v10";
 
         // ---- failure handling ----
         const int FailSleepMs = 200;                     // pause after a frame-less iteration
@@ -165,6 +165,11 @@ namespace TizenAmbilight
         {
             Config cfg = ReadConfig();
             _cfg = cfg;
+
+            // ONE process only, and never a restart storm (see Supervision.cs). Both run before any
+            // capture call, so a refused or cooling-down start touches nothing native.
+            if (!AcquireInstanceLock()) { L("another instance holds the lock: exiting"); Environment.Exit(0); }
+            CrashStormGuard(cfg);
 
             L("=== " + AppId + " " + Version + " starting ===");
             L(RecordedMeasurement);
@@ -385,6 +390,12 @@ namespace TizenAmbilight
                         {
                             _appliedCtrl = ctrl;
                             ApplyControl(ctrl, cfg, st);
+                        }
+                        if (_capturePaused && PauseOrphaned())
+                        {
+                            L("PAUSE EXPIRED: control channel unreachable for " + PauseOrphanSec +
+                              " s, resuming capture on baked defaults");
+                            _capturePaused = false; _pauseLogged = false;
                         }
                         if (_capturePaused)
                         {

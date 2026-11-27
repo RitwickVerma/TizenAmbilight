@@ -23,9 +23,16 @@ namespace TizenAmbilight
         static bool _pauseLogged;
 
 
+        /// <summary>One-shot ACTION tokens (shutdown, crashtest) are ignored in the first body a process
+        /// sees. With auto-restart on, a body still holding `shutdown=1` would otherwise kill every fresh
+        /// process the moment it starts: a restart loop the strip never recovers from.</summary>
+        static bool _sawFirstBody;
+
         static void ApplyControl(string body, Config cfg, Stats st)
         {
             if (body == null) return;
+            bool actionsArmed = _sawFirstBody;
+            _sawFirstBody = true;
             foreach (string rawTok in body.Split(new[] { ',', '\n', '\r', ' ' }, StringSplitOptions.RemoveEmptyEntries))
             {
                 string tok = rawTok.Trim().ToLowerInvariant();
@@ -89,7 +96,13 @@ namespace TizenAmbilight
                     case "psleep":  if (iv >= -1 && iv <= 200) PpiCapture.SleepOverrideMs = iv; break;
                     case "pz":      if (iv >= 4 && iv <= 73) PpiCapture.PzRequested = iv; break;
                     // Exercises the shutdown path on demand (see SelfTestShutdown).
-                    case "shutdown": if (iv == 1) SelfTestShutdown(); break;
+                    case "shutdown": if (iv == 1 && actionsArmed) SelfTestShutdown(); break;
+                    // Abnormal-exit test for auto-restart: 1 = Exit(3), 2 = FailFast (abort).
+                    case "crashtest":
+                        if (!actionsArmed) break;
+                        if (iv == 1) { L("CRASHTEST: Environment.Exit(3)"); FlushLog(); Environment.Exit(3); }
+                        if (iv == 2) { L("CRASHTEST: FailFast"); FlushLog(); Environment.FailFast("crashtest"); }
+                        break;
                     // HDR reference luminance in nits: what maps to full scale. Content varies above
                     // it and anything higher clips to WHITE, so this is the per-content knob.
                     case "peak": if (dv >= 100.0 && dv <= 4000.0) VideoPlaneCapture.HdrPeakNits = dv; break;

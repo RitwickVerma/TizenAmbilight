@@ -109,7 +109,7 @@ namespace TizenAmbilight
             return null;
         }
 
-        static readonly string PlatformStampPath = "/home/owner/ambilight/platform.txt";
+        static string PlatformStampPath { get { return System.IO.Path.Combine(StateDir, "platform.txt"); } }
 
         /// <summary>Compare the platform version with the previous run's and shout if it changed. An OS
         /// upgrade can alter the capture ABI silently, so a change is the single most valuable thing to
@@ -231,7 +231,7 @@ namespace TizenAmbilight
                     {
                         swCtrl.Restart();
                         string b = HttpGet(cfg.ControlUrl);
-                        if (b != null) _ctrlBody = b;
+                        if (b != null) { _ctrlBody = b; _ctrlOkUtc = DateTime.UtcNow; }
                     }
                     if (swPower.ElapsedMilliseconds >= PowerPollCacheMs)
                     {
