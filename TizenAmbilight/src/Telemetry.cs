@@ -210,7 +210,8 @@ namespace TizenAmbilight
             // fallback and quoting it here made the telemetry disagree with what is actually applied.
             w["tone"] = "black=" + cfg.Black + " gamma=" +
                         Math.Round(cfg.AdaptiveGamma ? _adaptGamma : cfg.Gamma, 3) +
-                        " gain=" + cfg.Gain;
+                        " gain=" + cfg.Gain +
+                        " cfade=" + VideoPlaneCapture.ChromaFadeLo + ".." + VideoPlaneCapture.ChromaFadeHi;
             double staleMs = (st.LastContentChangeUtc == DateTime.MinValue)
                 ? -1.0 : (DateTime.UtcNow - st.LastContentChangeUtc).TotalMilliseconds;
             w["content"] = "unchangedFrames=" + st.ContentUnchanged +

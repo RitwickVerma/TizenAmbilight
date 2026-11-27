@@ -426,6 +426,22 @@ namespace TizenAmbilight
         /// for dim ones. Live-tunable so the choice is per-content rather than a guess.</summary>
         public static double HdrPeakNits = 203.0;
 
+        /// <summary>Shadow chroma fade band (luma codes). Chroma is 0 at or below <see cref="ChromaFadeLo"/>,
+        /// untouched at or above <see cref="ChromaFadeHi"/>, smoothstep between. Hi &lt;= Lo disables the
+        /// fade. Live tokens `cflo` / `cfhi`; see YuvToRgb for why it exists.</summary>
+        public static double ChromaFadeLo = 18.0;
+        public static double ChromaFadeHi = 40.0;
+
+        public static double ShadowChromaWeight(int Y)
+        {
+            double lo = ChromaFadeLo, hi = ChromaFadeHi;
+            if (hi <= lo) return 1.0;
+            if (Y <= lo) return 0.0;
+            if (Y >= hi) return 1.0;
+            double t = (Y - lo) / (hi - lo);
+            return t * t * (3.0 - 2.0 * t);
+        }
+
         static bool _abiWarned;
 
         static byte[] _pqTable;
@@ -486,6 +502,14 @@ namespace TizenAmbilight
             // accepts 0..4) and means "no chroma", but forcing it to 1.0 made the setting silently do
             // nothing. Negative would INVERT the chroma axes, which is never intended.
             if (saturation < 0) saturation = 0;
+            // SHADOW CHROMA FADE. This TV's plane does not centre chroma on 128 near black: measured on
+            // saved and live frames, V reads 124.7-126.9 and U 126.7-129.5 even on TRUE black (luma 16).
+            // That fixed 1-3 code bias is invisible in bright scenes but, when luma is only a few codes
+            // above black, it IS most of the signal - it decodes as "less red" = green, and the adaptive
+            // dark-scene gamma then lifts it into a visible olive/teal glow. Fading chroma toward neutral
+            // below a shadow threshold removes it without inventing colour (it can only remove chroma)
+            // and leaves everything above ChromaFadeHi bit-identical. Smoothstep, so no visible knee.
+            saturation *= ShadowChromaWeight(Y);
             double u = 128.0 + (U - 128.0) * saturation;
             double v = 128.0 + (V - 128.0) * saturation;
 
