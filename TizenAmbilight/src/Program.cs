@@ -568,6 +568,19 @@ namespace TizenAmbilight
                             Thread.Sleep(vSleepMs);
                             continue;
                         }
+                        // An all-zero plane (seen while the panel wakes from standby) is not a picture:
+                        // Y=U=V=0 converts to a dim GREEN (U/V of 0 sit far off neutral 128), which lit
+                        // the whole strip green for a moment at every power-on. Skip it like a missing
+                        // frame, without backing off, so the first real frame follows at once.
+                        if (VideoPlaneCapture.IsEmptyPlane(vr.C))
+                        {
+                            st.EmptyPlaneSkips++;
+                            st.LastStatus = "vplane rc=0 but planes are empty (panel waking)";
+                            MaybePost(cfg, captureDir, layout, smoothed, st);
+                            MaybeBlackout(cfg, st);
+                            Thread.Sleep(20);
+                            continue;
+                        }
                         st.CaptureOk++;
                         st.ConsecutiveFails = 0;
                         st.BackoffStep = 0;
