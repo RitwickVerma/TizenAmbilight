@@ -79,6 +79,7 @@ CI: `.gitlab-ci.yml` (lint job + one .NET build-and-test job; runs on the linked
 - Python: stdlib `argparse` + `http.server`, shebang `python3`; no linter or type checker configured.
 - Commits: no enforced style; history uses `type: summary` (`security:`, `gitignore:`) with an explanatory body. Use conventional commits.
 - Never commit certs, keystores, tokens; run `python3 tools/check-secrets.py --staged` first.
+- CI runs the master copy of `tools/quality_gate.py` (vendored; the canonical copy and its tests live outside this repo, so don't edit it here). A change may not make things worse than its base: a file over 800 lines may not grow, broad catches (`catch { }`, `catch (Exception)`) may not increase in total, and a branch adds at most 400 lines unless a commit carries `Large-Change: <reason>`. A catch that must swallow says why in a comment on its line or the line above, one comment per catch: `// justified: <reason>`. Check before pushing: `python3 tools/quality_gate.py --base origin/master`.
 
 ## Pitfalls
 1. `tizen install` SIGKILLs the app; mid-capture this wedges the TV scaler (every later capture returns `rc=-2` until a TV power cycle; README: 3 of 3 deploys). Always set `pause` first (`a57ffb8`; `tools/control-server.py` docstring).
